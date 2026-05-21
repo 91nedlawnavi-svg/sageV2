@@ -41,7 +41,7 @@ async def subscribe(event: str, handler: Subscriber) -> None:
     """Register an async handler for a named event."""
     async with _lock:
         _subscriptions[event].append(handler)
-    log("event_bus", "subscribed", event=event, handler=handler.__qualname__)
+    log("event_bus", "subscribed", subscribed_event=event, handler=handler.__qualname__)
 
 
 async def publish(event: str, payload: dict | None = None) -> None:
