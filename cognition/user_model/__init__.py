@@ -1,0 +1,3 @@
+# cognition/user_model package
+from cognition.user_model.synthesis import extract_user_episode, generate_user_reflection
+from cognition.user_model.library_extraction import extract_and_populate_user_library

@@ -1,0 +1,2 @@
+# cognition/emotional package
+from cognition.emotional.user_emotional import extract_and_persist_user_emotions
