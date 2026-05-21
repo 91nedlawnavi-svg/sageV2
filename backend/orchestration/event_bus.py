@@ -59,7 +59,7 @@ async def publish(event: str, payload: dict | None = None) -> None:
     if not handlers:
         return
 
-    log("event_bus", "published", event=event, subscriber_count=len(handlers))
+    log("event_bus", "published", published_event=event, subscriber_count=len(handlers))
 
     for handler in handlers:
         asyncio.create_task(
