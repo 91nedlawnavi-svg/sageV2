@@ -5,23 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sage</title>
   <style>
-    /* ── Reset & base ───────────────────────────────────────────── */
+    /* ── Reset ──────────────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:        #0f0f0f;
-      --surface:   #161616;
-      --border:    #252525;
-      --muted:     #3a3a3a;
-      --text:      #e8e4dc;
-      --dim:       #7a7570;
+      --bg:        #0e0e0e;
+      --surface:   #141414;
+      --border:    #222222;
+      --muted:     #333333;
+      --text:      #e2ddd5;
+      --dim:       #6a6560;
+      --dim2:      #4a4540;
       --accent:    #c8a87a;
-      --sage:      #8fad99;
-      --user:      #7a9cb8;
-      --danger:    #c07070;
-      --radius:    6px;
-      --font:      'Georgia', serif;
+      --sage:      #8aab94;
+      --user:      #7090a8;
+      --danger:    #b86868;
+      --font:      'Georgia', 'Times New Roman', serif;
       --mono:      'Courier New', monospace;
+      --chat-max:  640px;
     }
 
     html, body {
@@ -30,101 +31,139 @@
       color: var(--text);
       font-family: var(--font);
       font-size: 15px;
-      line-height: 1.65;
+      line-height: 1.7;
     }
 
-    /* ── Layout ─────────────────────────────────────────────────── */
+    /* ── Root layout: single column, conversation-first ────────────── */
     #app {
-      display: grid;
-      grid-template-columns: 1fr 280px;
-      grid-template-rows: 48px 1fr auto;
-      grid-template-areas:
-        "header  header"
-        "chat    panel"
-        "input   panel";
+      display: flex;
+      flex-direction: column;
       height: 100vh;
-      max-width: 1280px;
+      max-width: 760px;
       margin: 0 auto;
+      position: relative;
     }
 
-    /* ── Header ─────────────────────────────────────────────────── */
-    #header {
-      grid-area: header;
+    /* ── Identity mark — minimal, near-invisible ────────────────────── */
+    #identity-mark {
+      position: fixed;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 760px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 20px;
-      border-bottom: 1px solid var(--border);
-      background: var(--surface);
+      padding: 14px 24px 10px;
+      pointer-events: none;
+      z-index: 10;
+      /* Fades away as you scroll into conversation */
+      background: linear-gradient(to bottom, var(--bg) 60%, transparent);
     }
 
-    #header-title {
-      font-size: 16px;
-      letter-spacing: 0.12em;
-      color: var(--accent);
-      font-weight: normal;
-    }
-
-    #header-status {
-      font-size: 11px;
+    #mark-name {
+      font-size: 13px;
+      letter-spacing: 0.22em;
       color: var(--dim);
       font-family: var(--mono);
+      font-weight: normal;
+      text-transform: lowercase;
+      pointer-events: none;
+      user-select: none;
     }
 
-    /* ── Chat pane ──────────────────────────────────────────────── */
+    #mark-name.connected {
+      color: var(--dim);
+    }
+
+    /* The only interactive element in the top bar: inner-pane trigger */
+    #panel-trigger {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--dim2);
+      font-size: 15px;
+      pointer-events: all;
+      transition: color 0.2s;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    #panel-trigger:hover { color: var(--dim); }
+    #panel-trigger.open  { color: var(--accent); }
+
+    /* ── Chat scroll container ──────────────────────────────────────── */
     #chat {
-      grid-area: chat;
+      flex: 1;
       overflow-y: auto;
-      padding: 24px 28px;
+      padding: 60px 24px 12px;
       display: flex;
       flex-direction: column;
-      gap: 20px;
+      /* No explicit gap — turns use margin for breathing */
     }
 
+    /* ── Conversation turns ─────────────────────────────────────────── */
     .turn {
       display: flex;
       flex-direction: column;
-      gap: 4px;
-      max-width: 740px;
+      max-width: var(--chat-max);
+      margin-bottom: 28px;
     }
 
-    .turn.user   { align-self: flex-end; align-items: flex-end; }
-    .turn.sage   { align-self: flex-start; align-items: flex-start; }
+    .turn.user {
+      align-self: flex-end;
+      align-items: flex-end;
+    }
 
+    .turn.sage {
+      align-self: flex-start;
+      align-items: flex-start;
+      padding-left: 14px;
+      border-left: 1px solid #1e2e24;
+    }
+
+    /* Turn label — very small, very quiet */
     .turn-label {
-      font-size: 10px;
-      letter-spacing: 0.1em;
+      font-size: 9px;
+      letter-spacing: 0.14em;
       text-transform: uppercase;
       font-family: var(--mono);
+      margin-bottom: 5px;
+      user-select: none;
     }
-    .turn.user  .turn-label { color: var(--user); }
-    .turn.sage  .turn-label { color: var(--sage); }
+    .turn.user  .turn-label { color: var(--dim2); }
+    .turn.sage  .turn-label { color: #364d3c; }
 
+    /* Message text — no bounding box, no background fill */
     .bubble {
-      padding: 11px 16px;
-      border-radius: var(--radius);
-      line-height: 1.7;
+      font-size: 14.5px;
+      line-height: 1.78;
       white-space: pre-wrap;
       word-break: break-word;
-      font-size: 14.5px;
-    }
-
-    .turn.user .bubble {
-      background: #1a2530;
-      border: 1px solid #253545;
-      color: #d4e4f0;
-    }
-
-    .turn.sage .bubble {
-      background: #151c18;
-      border: 1px solid #1e2e22;
       color: var(--text);
     }
 
+    /* User text is slightly dimmer — Sage is the primary voice */
+    .turn.user .bubble {
+      color: #aabcc8;
+      text-align: right;
+    }
+
+    .turn.sage .bubble {
+      color: var(--text);
+    }
+
+    /* Streaming cursor */
     .bubble.streaming::after {
       content: '▋';
-      animation: blink 0.9s step-end infinite;
+      animation: blink 0.85s step-end infinite;
       color: var(--sage);
+      opacity: 0.6;
       margin-left: 2px;
     }
 
@@ -132,299 +171,375 @@
       50% { opacity: 0; }
     }
 
-    /* ── Input area ─────────────────────────────────────────────── */
-    #input-area {
-      grid-area: input;
-      padding: 14px 20px 18px;
-      border-top: 1px solid var(--border);
-      background: var(--surface);
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
+    /* ── Input zone ─────────────────────────────────────────────────── */
+    #input-zone {
+      flex-shrink: 0;
+      padding: 10px 24px 22px;
+      position: relative;
     }
 
-    /* Phase 2A: #search-bar and #search-input removed.
-       User-triggered search now uses /search <query> in the main input.
-       The indicator below shows when search context is loaded. */
+    /* Soft fade above the input */
+    #input-zone::before {
+      content: '';
+      position: absolute;
+      top: -32px;
+      left: 0;
+      right: 0;
+      height: 32px;
+      background: linear-gradient(to bottom, transparent, var(--bg));
+      pointer-events: none;
+    }
 
+    /* Search context indicator — subtle, inline */
     #search-context-indicator {
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--accent);
       display: none;
       align-items: center;
       gap: 8px;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--accent);
+      margin-bottom: 7px;
+      padding-left: 2px;
     }
-
     #search-context-indicator.active { display: flex; }
 
     #clear-search-btn {
       background: none;
       border: none;
-      color: var(--dim);
+      color: var(--dim2);
       cursor: pointer;
-      font-size: 13px;
+      font-size: 11px;
       padding: 0;
       line-height: 1;
+      transition: color 0.15s;
     }
     #clear-search-btn:hover { color: var(--danger); }
 
-    /* Directive pane editor */
-    #directive-editor {
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-      gap: 8px;
-    }
-    #directive-textarea {
-      flex: 1;
-      background: var(--bg);
-      border: 1px solid var(--muted);
-      border-radius: var(--radius);
-      color: var(--text);
-      font-family: var(--mono);
-      font-size: 11px;
-      line-height: 1.6;
-      padding: 10px;
-      resize: none;
-      outline: none;
-      min-height: 180px;
-    }
-    #directive-textarea:focus { border-color: var(--accent); }
-    #directive-actions {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    #directive-save-btn {
-      background: transparent;
-      border: 1px solid var(--muted);
-      border-radius: var(--radius);
-      color: var(--dim);
-      font-family: var(--mono);
-      font-size: 11px;
-      padding: 4px 14px;
-      cursor: pointer;
-      transition: border-color 0.15s, color 0.15s;
-    }
-    #directive-save-btn:hover { border-color: var(--accent); color: var(--accent); }
-    #directive-save-btn:disabled { opacity: 0.4; cursor: default; }
-    #directive-status {
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--dim);
-    }
-    #directive-status.ok  { color: var(--accent); }
-    #directive-status.err { color: var(--danger); }
-
+    /* Input row */
     #message-row {
       display: flex;
-      gap: 10px;
       align-items: flex-end;
+      gap: 10px;
     }
 
     #message-input {
       flex: 1;
-      background: var(--bg);
-      border: 1px solid var(--muted);
-      border-radius: var(--radius);
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid var(--muted);
+      border-radius: 0;
       color: var(--text);
       font-family: var(--font);
-      font-size: 14px;
-      padding: 10px 14px;
+      font-size: 14.5px;
+      padding: 8px 2px;
       outline: none;
       resize: none;
-      min-height: 44px;
-      max-height: 140px;
+      min-height: 38px;
+      max-height: 130px;
       overflow-y: auto;
-      line-height: 1.5;
+      line-height: 1.55;
+      transition: border-color 0.2s;
     }
 
-    #message-input:focus { border-color: var(--sage); }
-    #message-input::placeholder { color: var(--dim); }
+    #message-input:focus { border-bottom-color: var(--sage); }
+    #message-input::placeholder { color: var(--dim2); font-style: italic; }
+    #message-input:disabled { opacity: 0.5; }
 
-    .input-btn {
-      background: transparent;
-      border: 1px solid var(--muted);
-      border-radius: var(--radius);
-      color: var(--dim);
-      font-family: var(--mono);
-      font-size: 12px;
-      padding: 9px 16px;
-      cursor: pointer;
-      transition: all 0.15s;
-      white-space: nowrap;
-    }
-
+    /* Send — just a glyph, no border, no label */
     #send-btn {
-      border-color: var(--sage);
-      color: var(--sage);
+      background: none;
+      border: none;
+      color: var(--dim);
+      font-size: 18px;
+      cursor: pointer;
+      padding: 4px 2px 6px;
+      line-height: 1;
+      transition: color 0.2s;
+      flex-shrink: 0;
+      font-family: var(--mono);
     }
+    #send-btn:hover:not(:disabled) { color: var(--sage); }
+    #send-btn:disabled { opacity: 0.25; cursor: not-allowed; }
 
-    #send-btn:hover:not(:disabled) {
-      background: var(--sage);
-      color: var(--bg);
+    /* Retry — barely visible; accessible but not intrusive */
+    #retry-btn {
+      background: none;
+      border: none;
+      color: var(--dim2);
+      font-size: 11px;
+      cursor: pointer;
+      padding: 4px 2px 6px;
+      line-height: 1;
+      transition: color 0.2s;
+      flex-shrink: 0;
+      font-family: var(--mono);
+      letter-spacing: 0.04em;
     }
+    #retry-btn:hover { color: var(--accent); }
 
-    #send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-    #retry-btn:hover { border-color: var(--accent); color: var(--accent); }
-
-    /* ── Side panel ─────────────────────────────────────────────── */
-    #panel {
-      grid-area: panel;
-      border-left: 1px solid var(--border);
+    /* ── Inner pane (overlay, slides in from right) ─────────────────── */
+    #inner-pane {
+      position: fixed;
+      top: 0;
+      right: -320px;
+      width: 300px;
+      height: 100vh;
       background: var(--surface);
+      border-left: 1px solid var(--border);
       display: flex;
       flex-direction: column;
+      transition: right 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 100;
       overflow: hidden;
     }
 
-    .panel-tabs {
+    #inner-pane.open {
+      right: 0;
+    }
+
+    /* Pane header */
+    .pane-header {
       display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 16px 12px;
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
     }
 
-    .panel-tab {
+    /* Tab row — compact, monospace, subdued */
+    .pane-tabs {
+      display: flex;
+      gap: 0;
       flex: 1;
-      padding: 9px 4px;
-      font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
+    }
+
+    .pane-tab {
       background: none;
       border: none;
       color: var(--dim);
+      font-family: var(--mono);
+      font-size: 9.5px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
       cursor: pointer;
+      padding: 4px 9px;
       transition: color 0.15s;
-      border-bottom: 2px solid transparent;
+      border-bottom: 1px solid transparent;
+      white-space: nowrap;
     }
 
-    .panel-tab.active {
+    .pane-tab.active {
       color: var(--accent);
       border-bottom-color: var(--accent);
     }
 
-    .panel-tab:hover:not(.active) { color: var(--text); }
+    .pane-tab:hover:not(.active) { color: var(--text); }
 
-    .panel-pane {
+    /* Close button */
+    #pane-close {
+      background: none;
+      border: none;
+      color: var(--dim2);
+      font-size: 16px;
+      cursor: pointer;
+      padding: 0 0 0 8px;
+      line-height: 1;
+      transition: color 0.15s;
+      flex-shrink: 0;
+    }
+    #pane-close:hover { color: var(--dim); }
+
+    /* Pane content areas */
+    .pane-content {
       display: none;
       flex: 1;
       overflow-y: auto;
-      padding: 14px;
+      padding: 16px;
     }
+    .pane-content.active { display: block; }
 
-    .panel-pane.active { display: block; }
-
-    .panel-section-label {
-      font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--dim);
-      margin-bottom: 8px;
-      margin-top: 16px;
-    }
-
-    .panel-section-label:first-child { margin-top: 0; }
-
+    /* Memory / reflection entries */
     .memory-entry {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 9px 11px;
-      font-size: 12.5px;
-      line-height: 1.55;
-      color: #c8c4bc;
-      margin-bottom: 8px;
+      font-size: 12px;
+      line-height: 1.6;
+      color: #b0aca4;
+      margin-bottom: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
       white-space: pre-wrap;
       word-break: break-word;
     }
+    .memory-entry:last-child { border-bottom: none; margin-bottom: 0; }
 
     .sage-entry {
-      border-color: #1e2e22;
-      background: #0e1510;
-      color: #aac4b2;
+      color: #9ab4a0;
+      font-style: italic;
     }
 
     .empty-state {
       color: var(--dim);
-      font-size: 12px;
+      font-size: 11.5px;
       font-family: var(--mono);
       text-align: center;
-      padding: 20px 0;
+      padding: 24px 0;
     }
 
-    /* Library panel */
+    /* Section label inside panes — even quieter */
+    .pane-section-label {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--dim2);
+      margin-bottom: 10px;
+      margin-top: 18px;
+    }
+    .pane-section-label:first-child { margin-top: 0; }
+
+    /* Library pane */
     .lib-cat {
-      margin-bottom: 12px;
+      margin-bottom: 14px;
     }
-
     .lib-cat-label {
       font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: 0.1em;
+      font-size: 9px;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
-      color: var(--dim);
+      color: var(--dim2);
       margin-bottom: 6px;
     }
-
     .lib-entry-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 5px 8px;
-      border-radius: 4px;
+      padding: 4px 6px;
+      border-radius: 3px;
       cursor: pointer;
-      font-size: 13px;
+      font-size: 12.5px;
+      color: #b0aca4;
     }
-
-    .lib-entry-row:hover { background: var(--border); }
-
+    .lib-entry-row:hover { background: var(--border); color: var(--text); }
     .lib-delete-btn {
       background: none;
       border: none;
-      color: var(--dim);
+      color: var(--dim2);
       cursor: pointer;
-      font-size: 12px;
-      padding: 0 4px;
+      font-size: 11px;
+      padding: 0 3px;
       line-height: 1;
       opacity: 0;
+      transition: opacity 0.15s, color 0.15s;
     }
-
     .lib-entry-row:hover .lib-delete-btn { opacity: 1; }
     .lib-delete-btn:hover { color: var(--danger); }
 
-    /* Status panel */
+    /* Status pane */
     .status-row {
       display: flex;
       justify-content: space-between;
       padding: 5px 0;
       border-bottom: 1px solid var(--border);
-      font-size: 12px;
+      font-size: 11px;
     }
-
-    .status-key { color: var(--dim); font-family: var(--mono); font-size: 11px; }
-    .status-val { color: var(--text); font-family: var(--mono); font-size: 11px; }
+    .status-key { color: var(--dim);  font-family: var(--mono); }
+    .status-val { color: #b0aca4;     font-family: var(--mono); }
     .status-ok  { color: var(--sage); }
     .status-warn{ color: var(--accent); }
 
-    /* Scrollbar */
-    ::-webkit-scrollbar { width: 5px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 3px; }
+    /* ── Directive pane — interior configuration, not settings panel ── */
+    #directive-editor {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      gap: 10px;
+    }
 
-    /* ── Responsive: collapse panel on small screens ─────────────── */
-    @media (max-width: 700px) {
-      #app {
-        grid-template-columns: 1fr;
-        grid-template-areas:
-          "header"
-          "chat"
-          "input";
-      }
-      #panel { display: none; }
+    /* Subtle descriptor above the textarea — not a label, more like a state */
+    #directive-context-note {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      color: var(--dim2);
+      text-transform: lowercase;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    #directive-textarea {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #c8c4bc;
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1.7;
+      padding: 4px 0;
+      resize: none;
+      outline: none;
+      min-height: 200px;
+    }
+    #directive-textarea:focus { color: var(--text); }
+
+    #directive-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-top: 1px solid var(--border);
+      padding-top: 8px;
+    }
+
+    #directive-save-btn {
+      background: transparent;
+      border: none;
+      color: var(--dim);
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      padding: 3px 0;
+      cursor: pointer;
+      transition: color 0.15s;
+      text-transform: lowercase;
+    }
+    #directive-save-btn:hover:not(:disabled) { color: var(--accent); }
+    #directive-save-btn:disabled { opacity: 0.3; cursor: default; }
+
+    #directive-status {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--dim2);
+      transition: opacity 0.4s;
+    }
+    #directive-status.ok  { color: var(--sage); }
+    #directive-status.err { color: var(--danger); }
+
+    /* ── Backdrop for inner pane on mobile ──────────────────────────── */
+    #pane-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 99;
+      opacity: 0;
+      transition: opacity 0.28s;
+    }
+    #pane-backdrop.open {
+      display: block;
+      opacity: 1;
+    }
+
+    /* ── Scrollbar ──────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 2px; }
+
+    /* ── Responsive ─────────────────────────────────────────────────── */
+    @media (max-width: 540px) {
+      #app { max-width: 100%; }
+      #chat { padding: 54px 16px 10px; }
+      #input-zone { padding: 8px 16px 20px; }
+      #inner-pane { width: 86vw; }
+      #identity-mark { padding: 12px 16px 8px; }
     }
   </style>
 </head>
@@ -432,120 +547,153 @@
 
 <div id="app">
 
-  <!-- Header -->
-  <header id="header">
-    <span id="header-title">✦ sage</span>
-    <span id="header-status">connecting…</span>
-  </header>
+  <!-- Identity mark — fixed, minimal, near-invisible -->
+  <div id="identity-mark">
+    <span id="mark-name">sage</span>
+    <button id="panel-trigger" title="inner" aria-label="open inner pane">⋯</button>
+  </div>
 
-  <!-- Chat pane -->
+  <!-- Chat — pure conversation, no bounding infrastructure -->
   <main id="chat"></main>
 
-  <!-- Input area -->
-  <section id="input-area">
-    <!-- Phase 2A: search bar removed — use /search <query> in message input -->
+  <!-- Input zone -->
+  <section id="input-zone">
+    <!-- Search context indicator: only appears after /search command -->
     <div id="search-context-indicator">
       <span id="search-context-label">⚬ search context loaded</span>
-      <button id="clear-search-btn" title="Clear search context">✕</button>
+      <button id="clear-search-btn" title="clear search context">✕</button>
     </div>
 
     <div id="message-row">
       <textarea
         id="message-input"
         rows="1"
-        placeholder="say something…"
+        placeholder="…"
         autocomplete="off"
+        spellcheck="false"
       ></textarea>
-      <button id="send-btn" class="input-btn">send</button>
-      <button id="retry-btn" class="input-btn">retry</button>
+      <button id="send-btn" title="send (enter)">↵</button>
+      <button id="retry-btn" title="retry last">↺</button>
     </div>
   </section>
 
-  <!-- Side panel -->
-  <aside id="panel">
-    <div class="panel-tabs">
-      <button class="panel-tab active" data-pane="memories">memory</button>
-      <button class="panel-tab"        data-pane="library">library</button>
-      <button class="panel-tab"        data-pane="sage-inner">sage</button>
-      <button class="panel-tab"        data-pane="status">status</button>
-      <button class="panel-tab"        data-pane="directive">directive</button>
-    </div>
+</div><!-- /#app -->
 
-    <!-- User memories pane -->
-    <div id="pane-memories" class="panel-pane active">
-      <div class="panel-section-label">recent episodes</div>
-      <div id="episodes-list"><p class="empty-state">loading…</p></div>
-    </div>
+<!-- Backdrop (closes pane when clicked outside on mobile) -->
+<div id="pane-backdrop"></div>
 
-    <!-- Library pane -->
-    <div id="pane-library" class="panel-pane">
-      <div id="library-tree"><p class="empty-state">loading…</p></div>
-    </div>
+<!-- Inner pane — slides in from right, overlay only -->
+<div id="inner-pane">
 
-    <!-- Sage inner pane -->
-    <div id="pane-sage-inner" class="panel-pane">
-      <div class="panel-section-label">sage's reflections</div>
-      <div id="sage-reflections-list"><p class="empty-state">loading…</p></div>
+  <div class="pane-header">
+    <div class="pane-tabs">
+      <button class="pane-tab active" data-pane="memories">memory</button>
+      <button class="pane-tab"        data-pane="library">library</button>
+      <button class="pane-tab"        data-pane="sage-inner">inner</button>
+      <button class="pane-tab"        data-pane="status">status</button>
+      <button class="pane-tab"        data-pane="directive">directive</button>
     </div>
+    <button id="pane-close" title="close" aria-label="close inner pane">×</button>
+  </div>
 
-    <!-- Status pane -->
-    <div id="pane-status" class="panel-pane">
-      <div class="panel-section-label">system</div>
-      <div id="status-rows"><p class="empty-state">loading…</p></div>
-    </div>
-    <!-- Directive pane — Phase 2A: live-editable identity spine -->
-    <div id="pane-directive" class="panel-pane">
-      <div class="panel-section-label">identity directive</div>
-      <div id="directive-editor">
-        <textarea id="directive-textarea" spellcheck="false" placeholder="Loading directive…"></textarea>
-        <div id="directive-actions">
-          <button id="directive-save-btn">save</button>
-          <span id="directive-status"></span>
-        </div>
+  <!-- User memories -->
+  <div id="pane-memories" class="pane-content active">
+    <div class="pane-section-label">recent episodes</div>
+    <div id="episodes-list"><p class="empty-state">loading…</p></div>
+  </div>
+
+  <!-- Library -->
+  <div id="pane-library" class="pane-content">
+    <div id="library-tree"><p class="empty-state">loading…</p></div>
+  </div>
+
+  <!-- Sage inner -->
+  <div id="pane-sage-inner" class="pane-content">
+    <div class="pane-section-label">sage's reflections</div>
+    <div id="sage-reflections-list"><p class="empty-state">loading…</p></div>
+  </div>
+
+  <!-- Status -->
+  <div id="pane-status" class="pane-content">
+    <div class="pane-section-label">system</div>
+    <div id="status-rows"><p class="empty-state">loading…</p></div>
+  </div>
+
+  <!-- Directive — Phase 2A: live-editable identity spine -->
+  <div id="pane-directive" class="pane-content">
+    <div id="directive-editor">
+      <div id="directive-context-note">what sage is</div>
+      <textarea id="directive-textarea" spellcheck="false" placeholder="loading…"></textarea>
+      <div id="directive-actions">
+        <button id="directive-save-btn">write</button>
+        <span id="directive-status"></span>
       </div>
     </div>
-  </aside>
-</div>
+  </div>
+
+</div><!-- /#inner-pane -->
 
 <script>
 /* ══════════════════════════════════════════════════════════════════
-   Sage V2 — Frontend JavaScript
+   Sage V2 — Frontend JavaScript  (Phase 2B: Presence Restoration)
    Single-file, no framework, no build step.
-   All state is module-scoped. Polling uses setTimeout loops.
-   ═════════════════════════════════════════════════════════════════ */
+   All Phase 2A functionality preserved intact.
+   ══════════════════════════════════════════════════════════════════ */
 
 'use strict';
 
 // ── State ──────────────────────────────────────────────────────────
-let _streaming      = false;
-let _pollTimer      = null;
-let _currentJid     = null;
-let _pollOffset     = 0;
-let _searchContext  = "";   // structured context block from search
+let _streaming     = false;
+let _pollTimer     = null;
+let _currentJid    = null;
+let _pollOffset    = 0;
+let _searchContext = "";   // structured context block from /search command
+let _paneOpen      = false;
 
 // ── DOM refs ───────────────────────────────────────────────────────
-const chatEl        = document.getElementById('chat');
-const messageInput  = document.getElementById('message-input');
-const sendBtn       = document.getElementById('send-btn');
-const retryBtn      = document.getElementById('retry-btn');
-// Phase 2A: searchInput + searchBtn removed — search via /search command
-const searchInd     = document.getElementById('search-context-indicator');
-const searchLabel   = document.getElementById('search-context-label');
-const clearSearchBtn= document.getElementById('clear-search-btn');
-const headerStatus  = document.getElementById('header-status');
-const directiveTA   = document.getElementById('directive-textarea');
-const directiveSave = document.getElementById('directive-save-btn');
-const directiveStat = document.getElementById('directive-status');
+const chatEl         = document.getElementById('chat');
+const messageInput   = document.getElementById('message-input');
+const sendBtn        = document.getElementById('send-btn');
+const retryBtn       = document.getElementById('retry-btn');
+const searchInd      = document.getElementById('search-context-indicator');
+const searchLabel    = document.getElementById('search-context-label');
+const clearSearchBtn = document.getElementById('clear-search-btn');
+const markName       = document.getElementById('mark-name');
+const panelTrigger   = document.getElementById('panel-trigger');
+const innerPane      = document.getElementById('inner-pane');
+const paneClose      = document.getElementById('pane-close');
+const paneBackdrop   = document.getElementById('pane-backdrop');
+const directiveTA    = document.getElementById('directive-textarea');
+const directiveSave  = document.getElementById('directive-save-btn');
+const directiveStat  = document.getElementById('directive-status');
 
-// ── Panel tabs ─────────────────────────────────────────────────────
-document.querySelectorAll('.panel-tab').forEach(tab => {
+// ── Inner pane open/close ──────────────────────────────────────────
+function openPane() {
+  _paneOpen = true;
+  innerPane.classList.add('open');
+  paneBackdrop.classList.add('open');
+  panelTrigger.classList.add('open');
+}
+
+function closePane() {
+  _paneOpen = false;
+  innerPane.classList.remove('open');
+  paneBackdrop.classList.remove('open');
+  panelTrigger.classList.remove('open');
+}
+
+panelTrigger.addEventListener('click', () => _paneOpen ? closePane() : openPane());
+paneClose.addEventListener('click', closePane);
+paneBackdrop.addEventListener('click', closePane);
+
+// ── Pane tab switching ─────────────────────────────────────────────
+document.querySelectorAll('.pane-tab').forEach(tab => {
   tab.addEventListener('click', () => {
-    document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.panel-pane').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.pane-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.pane-content').forEach(p => p.classList.remove('active'));
     tab.classList.add('active');
     const paneId = 'pane-' + tab.dataset.pane;
     document.getElementById(paneId)?.classList.add('active');
-    // Refresh data when switching
     if (tab.dataset.pane === 'memories')   loadUserMemories();
     if (tab.dataset.pane === 'library')    loadLibrary();
     if (tab.dataset.pane === 'sage-inner') loadSageReflections();
@@ -557,7 +705,7 @@ document.querySelectorAll('.panel-tab').forEach(tab => {
 // ── Auto-resize textarea ───────────────────────────────────────────
 messageInput.addEventListener('input', () => {
   messageInput.style.height = 'auto';
-  messageInput.style.height = Math.min(messageInput.scrollHeight, 140) + 'px';
+  messageInput.style.height = Math.min(messageInput.scrollHeight, 130) + 'px';
 });
 
 // ── Send on Enter (Shift+Enter for newline) ────────────────────────
@@ -571,7 +719,7 @@ messageInput.addEventListener('keydown', e => {
 sendBtn.addEventListener('click', () => { if (!_streaming) sendMessage(); });
 retryBtn.addEventListener('click', () => { if (!_streaming) retryMessage(); });
 
-// ── Search context clear ──────────────────────────────────────────
+// ── Clear search context ───────────────────────────────────────────
 clearSearchBtn.addEventListener('click', () => {
   _searchContext = "";
   searchInd.classList.remove('active');
@@ -579,15 +727,14 @@ clearSearchBtn.addEventListener('click', () => {
 });
 
 // ── Core: send message ─────────────────────────────────────────────
-// Phase 2A: /search <query> command replaces the literal search input.
-// Typing /search <query> in the message box fetches web context and
-// loads it into _searchContext without sending a chat message.
-// The next message you send will include that context.
+// Phase 2A invariant preserved:
+// /search <query> intercepts the input and runs a search.
+// No visible search bar. Search context loads silently.
 async function sendMessage() {
   const text = messageInput.value.trim();
   if (!text) return;
 
-  // /search command intercept
+  // /search command — Phase 2A behavior unchanged
   if (text.startsWith('/search ')) {
     const query = text.slice(8).trim();
     if (query) {
@@ -618,7 +765,7 @@ async function sendMessage() {
 
     startPolling(jid);
   } catch (err) {
-    appendTurn('sage', `⚠️ Could not reach Sage. (${err.message})`);
+    appendTurn('sage', `couldn't reach sage. (${err.message})`);
     setStreaming(false);
   }
 }
@@ -631,7 +778,7 @@ async function retryMessage() {
     const { jid } = await resp.json();
     startPolling(jid);
   } catch (err) {
-    appendTurn('sage', `⚠️ Retry failed. (${err.message})`);
+    appendTurn('sage', `retry failed. (${err.message})`);
     setStreaming(false);
   }
 }
@@ -640,7 +787,7 @@ async function retryMessage() {
 function startPolling(jid) {
   _currentJid  = jid;
   _pollOffset  = 0;
-  const bubble = appendTurn('sage', '', true);  // streaming bubble
+  const bubble = appendTurn('sage', '', true);
   schedulePoll(bubble);
 }
 
@@ -661,17 +808,13 @@ async function poll(bubble) {
       scrollChat();
     }
 
-    if (data.status === 'thinking' && bubble.textContent === '') {
-      bubble.textContent = '';
-    }
-
     if (data.done) {
       finishStreaming(bubble);
     } else {
       schedulePoll(bubble);
     }
   } catch (err) {
-    bubble.textContent += `\n⚠️ Poll error: ${err.message}`;
+    bubble.textContent += `\n⚠ poll error: ${err.message}`;
     finishStreaming(bubble);
   }
 }
@@ -682,13 +825,10 @@ function finishStreaming(bubble) {
   refreshPanels();
 }
 
-// ── Search (invoked by /search command — no visible search bar) ───
-// Phase 2A: runSearch(query) is internal infrastructure called only
-// when the user types /search <query> in the main message input.
+// ── Search — Phase 2A, internal only ──────────────────────────────
 async function runSearch(query) {
   if (!query) return;
-
-  messageInput.placeholder = `searching: ${query}…`;
+  messageInput.placeholder = `searching…`;
 
   try {
     const resp = await fetch('/api/search', {
@@ -703,14 +843,14 @@ async function runSearch(query) {
       searchInd.classList.add('active');
       searchLabel.textContent = `⚬ "${query}" — ${data.result_count} results`;
     } else {
-      searchLabel.textContent = '⚠ no results';
+      searchLabel.textContent = '⚬ no results';
       searchInd.classList.add('active');
     }
   } catch (err) {
-    searchLabel.textContent = '⚠ search error';
+    searchLabel.textContent = '⚬ search error';
     searchInd.classList.add('active');
   } finally {
-    messageInput.placeholder = '';
+    messageInput.placeholder = '…';
   }
 }
 
@@ -739,38 +879,34 @@ function scrollChat() {
 }
 
 function setStreaming(v) {
-  _streaming           = v;
-  sendBtn.disabled     = v;
-  messageInput.disabled = v;
+  _streaming             = v;
+  sendBtn.disabled       = v;
+  messageInput.disabled  = v;
 }
 
 // ── Panel data loaders ─────────────────────────────────────────────
 function refreshPanels() {
-  const activePaneTab = document.querySelector('.panel-tab.active')?.dataset?.pane;
-  if (activePaneTab === 'memories')   loadUserMemories();
-  if (activePaneTab === 'library')    loadLibrary();
-  if (activePaneTab === 'sage-inner') loadSageReflections();
-  if (activePaneTab === 'status')     loadStatus();
-  // directive pane does NOT auto-refresh — user edits should not be clobbered
+  if (!_paneOpen) return;
+  const activeTab = document.querySelector('.pane-tab.active')?.dataset?.pane;
+  if (activeTab === 'memories')   loadUserMemories();
+  if (activeTab === 'library')    loadLibrary();
+  if (activeTab === 'sage-inner') loadSageReflections();
+  if (activeTab === 'status')     loadStatus();
+  // directive pane does NOT auto-refresh — user edits must not be clobbered
 }
 
-// ── Directive pane ─────────────────────────────────────────────────
-// Phase 2A: live-editable identity spine.
-// Loads directive.txt content into the textarea for editing.
-// Saving POSTs to /api/directive and the backend writes to disk atomically.
-// The directive is never auto-refreshed mid-edit to prevent clobber.
+// ── Directive pane — Phase 2A live-editable identity spine ─────────
 async function loadDirective() {
   if (!directiveTA) return;
   directiveTA.value = '';
-  directiveStat.textContent = 'loading…';
+  directiveStat.textContent = '';
   directiveStat.className = '';
   try {
     const resp = await fetch('/api/directive');
     const data = await resp.json();
-    directiveTA.value       = data.content || '';
-    directiveStat.textContent = '';
+    directiveTA.value = data.content || '';
   } catch (err) {
-    directiveStat.textContent = '⚠ load error';
+    directiveStat.textContent = 'load error';
     directiveStat.className = 'err';
   }
 }
@@ -778,9 +914,9 @@ async function loadDirective() {
 directiveSave?.addEventListener('click', async () => {
   const content = directiveTA?.value?.trim();
   if (!content) return;
-  directiveSave.disabled      = true;
-  directiveStat.textContent   = 'saving…';
-  directiveStat.className     = '';
+  directiveSave.disabled    = true;
+  directiveStat.textContent = 'writing…';
+  directiveStat.className   = '';
   try {
     const resp = await fetch('/api/directive', {
       method:  'POST',
@@ -788,17 +924,27 @@ directiveSave?.addEventListener('click', async () => {
       body:    JSON.stringify({ content }),
     });
     const data = await resp.json();
-    if (data.ok) { directiveStat.textContent = 'saved.'; directiveStat.className = 'ok'; }
-    else         { directiveStat.textContent = 'error.'; directiveStat.className = 'err'; }
+    if (data.ok) {
+      directiveStat.textContent = 'written.';
+      directiveStat.className   = 'ok';
+      // Fade status out after 2.5s
+      setTimeout(() => {
+        directiveStat.textContent = '';
+        directiveStat.className   = '';
+      }, 2500);
+    } else {
+      directiveStat.textContent = 'error.';
+      directiveStat.className   = 'err';
+    }
   } catch (err) {
     directiveStat.textContent = 'failed.';
-    directiveStat.className = 'err';
+    directiveStat.className   = 'err';
   } finally {
     directiveSave.disabled = false;
   }
 });
 
-
+// ── Memory loaders ─────────────────────────────────────────────────
 async function loadUserMemories() {
   const el = document.getElementById('episodes-list');
   try {
@@ -877,11 +1023,8 @@ async function loadStatus() {
       row('search budget',  `${budget.remaining||0} remaining`,
                             (budget.remaining > 0) ? 'ok' : 'warn'),
     ].join('');
-
-    headerStatus.textContent = `turns: ${d.session_turns}  |  daemon: ${d.daemon_running ? 'on' : 'off'}`;
   } catch {
     el.innerHTML = '<p class="empty-state">unavailable</p>';
-    headerStatus.textContent = 'disconnected';
   }
 }
 
@@ -904,11 +1047,14 @@ function escAttr(s) {
 }
 
 // ── Boot ───────────────────────────────────────────────────────────
+// Header status text removed from primary view.
+// Sage is connected when messages arrive — no uptime banner needed.
 (async function boot() {
   try {
-    await loadStatus();
-    await loadUserMemories();
-  } catch { /* server may not be ready yet */ }
+    // Pre-warm status silently — no DOM update in primary view
+    await fetch('/api/status').catch(() => {});
+    markName.classList.add('connected');
+  } catch { /* not critical */ }
 })();
 </script>
 </body>
