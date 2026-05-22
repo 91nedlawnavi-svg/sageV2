@@ -143,40 +143,9 @@
       gap: 8px;
     }
 
-    #search-bar {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-
-    #search-input {
-      flex: 1;
-      background: var(--bg);
-      border: 1px solid var(--muted);
-      border-radius: var(--radius);
-      color: var(--text);
-      font-family: var(--mono);
-      font-size: 12px;
-      padding: 5px 10px;
-      outline: none;
-    }
-
-    #search-input:focus { border-color: var(--accent); }
-    #search-input::placeholder { color: var(--dim); }
-
-    #search-btn {
-      background: transparent;
-      border: 1px solid var(--muted);
-      border-radius: var(--radius);
-      color: var(--dim);
-      font-family: var(--mono);
-      font-size: 11px;
-      padding: 5px 12px;
-      cursor: pointer;
-      transition: border-color 0.15s, color 0.15s;
-    }
-
-    #search-btn:hover { border-color: var(--accent); color: var(--accent); }
+    /* Phase 2A: #search-bar and #search-input removed.
+       User-triggered search now uses /search <query> in the main input.
+       The indicator below shows when search context is loaded. */
 
     #search-context-indicator {
       font-family: var(--mono);
@@ -199,6 +168,54 @@
       line-height: 1;
     }
     #clear-search-btn:hover { color: var(--danger); }
+
+    /* Directive pane editor */
+    #directive-editor {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      gap: 8px;
+    }
+    #directive-textarea {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--muted);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1.6;
+      padding: 10px;
+      resize: none;
+      outline: none;
+      min-height: 180px;
+    }
+    #directive-textarea:focus { border-color: var(--accent); }
+    #directive-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    #directive-save-btn {
+      background: transparent;
+      border: 1px solid var(--muted);
+      border-radius: var(--radius);
+      color: var(--dim);
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 4px 14px;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    #directive-save-btn:hover { border-color: var(--accent); color: var(--accent); }
+    #directive-save-btn:disabled { opacity: 0.4; cursor: default; }
+    #directive-status {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--dim);
+    }
+    #directive-status.ok  { color: var(--accent); }
+    #directive-status.err { color: var(--danger); }
 
     #message-row {
       display: flex;
@@ -426,11 +443,7 @@
 
   <!-- Input area -->
   <section id="input-area">
-    <div id="search-bar">
-      <input id="search-input" type="text" placeholder="search the web…" autocomplete="off" />
-      <button id="search-btn" class="input-btn">search</button>
-    </div>
-
+    <!-- Phase 2A: search bar removed — use /search <query> in message input -->
     <div id="search-context-indicator">
       <span id="search-context-label">⚬ search context loaded</span>
       <button id="clear-search-btn" title="Clear search context">✕</button>
@@ -455,6 +468,7 @@
       <button class="panel-tab"        data-pane="library">library</button>
       <button class="panel-tab"        data-pane="sage-inner">sage</button>
       <button class="panel-tab"        data-pane="status">status</button>
+      <button class="panel-tab"        data-pane="directive">directive</button>
     </div>
 
     <!-- User memories pane -->
@@ -478,6 +492,17 @@
     <div id="pane-status" class="panel-pane">
       <div class="panel-section-label">system</div>
       <div id="status-rows"><p class="empty-state">loading…</p></div>
+    </div>
+    <!-- Directive pane — Phase 2A: live-editable identity spine -->
+    <div id="pane-directive" class="panel-pane">
+      <div class="panel-section-label">identity directive</div>
+      <div id="directive-editor">
+        <textarea id="directive-textarea" spellcheck="false" placeholder="Loading directive…"></textarea>
+        <div id="directive-actions">
+          <button id="directive-save-btn">save</button>
+          <span id="directive-status"></span>
+        </div>
+      </div>
     </div>
   </aside>
 </div>
@@ -503,12 +528,14 @@ const chatEl        = document.getElementById('chat');
 const messageInput  = document.getElementById('message-input');
 const sendBtn       = document.getElementById('send-btn');
 const retryBtn      = document.getElementById('retry-btn');
-const searchInput   = document.getElementById('search-input');
-const searchBtn     = document.getElementById('search-btn');
+// Phase 2A: searchInput + searchBtn removed — search via /search command
 const searchInd     = document.getElementById('search-context-indicator');
 const searchLabel   = document.getElementById('search-context-label');
 const clearSearchBtn= document.getElementById('clear-search-btn');
 const headerStatus  = document.getElementById('header-status');
+const directiveTA   = document.getElementById('directive-textarea');
+const directiveSave = document.getElementById('directive-save-btn');
+const directiveStat = document.getElementById('directive-status');
 
 // ── Panel tabs ─────────────────────────────────────────────────────
 document.querySelectorAll('.panel-tab').forEach(tab => {
@@ -523,6 +550,7 @@ document.querySelectorAll('.panel-tab').forEach(tab => {
     if (tab.dataset.pane === 'library')    loadLibrary();
     if (tab.dataset.pane === 'sage-inner') loadSageReflections();
     if (tab.dataset.pane === 'status')     loadStatus();
+    if (tab.dataset.pane === 'directive')  loadDirective();
   });
 });
 
@@ -543,11 +571,7 @@ messageInput.addEventListener('keydown', e => {
 sendBtn.addEventListener('click', () => { if (!_streaming) sendMessage(); });
 retryBtn.addEventListener('click', () => { if (!_streaming) retryMessage(); });
 
-// ── Search ─────────────────────────────────────────────────────────
-searchInput.addEventListener('keydown', e => {
-  if (e.key === 'Enter') runSearch();
-});
-searchBtn.addEventListener('click', runSearch);
+// ── Search context clear ──────────────────────────────────────────
 clearSearchBtn.addEventListener('click', () => {
   _searchContext = "";
   searchInd.classList.remove('active');
@@ -555,9 +579,24 @@ clearSearchBtn.addEventListener('click', () => {
 });
 
 // ── Core: send message ─────────────────────────────────────────────
+// Phase 2A: /search <query> command replaces the literal search input.
+// Typing /search <query> in the message box fetches web context and
+// loads it into _searchContext without sending a chat message.
+// The next message you send will include that context.
 async function sendMessage() {
   const text = messageInput.value.trim();
   if (!text) return;
+
+  // /search command intercept
+  if (text.startsWith('/search ')) {
+    const query = text.slice(8).trim();
+    if (query) {
+      messageInput.value = '';
+      messageInput.style.height = 'auto';
+      await runSearch(query);
+    }
+    return;
+  }
 
   appendTurn('user', text);
   messageInput.value = '';
@@ -572,7 +611,6 @@ async function sendMessage() {
     });
     const { jid } = await resp.json();
 
-    // Clear search context after it's been used
     if (_searchContext) {
       _searchContext = "";
       searchInd.classList.remove('active');
@@ -644,13 +682,13 @@ function finishStreaming(bubble) {
   refreshPanels();
 }
 
-// ── Search ─────────────────────────────────────────────────────────
-async function runSearch() {
-  const query = searchInput.value.trim();
+// ── Search (invoked by /search command — no visible search bar) ───
+// Phase 2A: runSearch(query) is internal infrastructure called only
+// when the user types /search <query> in the main message input.
+async function runSearch(query) {
   if (!query) return;
 
-  searchBtn.disabled  = true;
-  searchBtn.textContent = '…';
+  messageInput.placeholder = `searching: ${query}…`;
 
   try {
     const resp = await fetch('/api/search', {
@@ -669,11 +707,10 @@ async function runSearch() {
       searchInd.classList.add('active');
     }
   } catch (err) {
-    searchLabel.textContent = `⚠ search error`;
+    searchLabel.textContent = '⚠ search error';
     searchInd.classList.add('active');
   } finally {
-    searchBtn.disabled    = false;
-    searchBtn.textContent = 'search';
+    messageInput.placeholder = '';
   }
 }
 
@@ -714,7 +751,53 @@ function refreshPanels() {
   if (activePaneTab === 'library')    loadLibrary();
   if (activePaneTab === 'sage-inner') loadSageReflections();
   if (activePaneTab === 'status')     loadStatus();
+  // directive pane does NOT auto-refresh — user edits should not be clobbered
 }
+
+// ── Directive pane ─────────────────────────────────────────────────
+// Phase 2A: live-editable identity spine.
+// Loads directive.txt content into the textarea for editing.
+// Saving POSTs to /api/directive and the backend writes to disk atomically.
+// The directive is never auto-refreshed mid-edit to prevent clobber.
+async function loadDirective() {
+  if (!directiveTA) return;
+  directiveTA.value = '';
+  directiveStat.textContent = 'loading…';
+  directiveStat.className = '';
+  try {
+    const resp = await fetch('/api/directive');
+    const data = await resp.json();
+    directiveTA.value       = data.content || '';
+    directiveStat.textContent = '';
+  } catch (err) {
+    directiveStat.textContent = '⚠ load error';
+    directiveStat.className = 'err';
+  }
+}
+
+directiveSave?.addEventListener('click', async () => {
+  const content = directiveTA?.value?.trim();
+  if (!content) return;
+  directiveSave.disabled      = true;
+  directiveStat.textContent   = 'saving…';
+  directiveStat.className     = '';
+  try {
+    const resp = await fetch('/api/directive', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ content }),
+    });
+    const data = await resp.json();
+    if (data.ok) { directiveStat.textContent = 'saved.'; directiveStat.className = 'ok'; }
+    else         { directiveStat.textContent = 'error.'; directiveStat.className = 'err'; }
+  } catch (err) {
+    directiveStat.textContent = 'failed.';
+    directiveStat.className = 'err';
+  } finally {
+    directiveSave.disabled = false;
+  }
+});
+
 
 async function loadUserMemories() {
   const el = document.getElementById('episodes-list');

@@ -43,12 +43,11 @@ _daemon    = None
 _directive = ""
 
 
-def init_memory_routes(session, daemon, directive: str) -> None:
+def init_memory_routes(session, daemon) -> None:
     """Inject dependencies from server."""
     global _session, _daemon, _directive
     _session   = session
     _daemon    = daemon
-    _directive = directive
 
 
 # ── Status ────────────────────────────────────────────────────────────

@@ -73,12 +73,10 @@ async def startup():
         job_store=job_store,
         session=session,
         client=client,
-        directive=directive,
     )
     init_memory_routes(
         session=session,
         daemon=None,       # filled in after daemon is created below
-        directive=directive,
     )
     init_search_routes(client=client)
 
@@ -87,7 +85,7 @@ async def startup():
     await _daemon.start()
 
     # Now that daemon exists, back-fill the memory routes reference
-    init_memory_routes(session=session, daemon=_daemon, directive=directive)
+    init_memory_routes(session=session, daemon=_daemon)
 
     log("bootstrap", "startup_complete", port=PORT)
     print(f"\n✦ Sage V2 running on http://localhost:{PORT}\n")

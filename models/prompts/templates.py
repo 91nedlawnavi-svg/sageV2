@@ -229,6 +229,67 @@ def library_merge_prompt(existing: str, new_note: str) -> str:
 
 
 # ══════════════════════════════════════════════════════════════════════
+# PHASE 2A — DIRECTIVE COMPOSITION
+#
+# These functions compose the directive with a task-specific system
+# prompt to produce the full system string passed to nim_complete().
+#
+# The directive is ALWAYS first. Task instructions operate within it.
+# The directive is the interpretive lens; the task prompt is the aperture.
+#
+# INVARIANT: These functions are read-only. They never write to
+# directive.txt. They receive the directive as a string argument,
+# which callers load via get_directive(). The separation between
+# "who Sage is" (directive) and "what Sage is doing right now"
+# (task prompt) is preserved structurally in every call.
+#
+# Used by: cognition/sage_model/synthesis.py
+# Not used by: user-domain synthesis (episodic, emotional, library) —
+#   those are about Elliot, not Sage, and should not carry Sage's
+#   first-person identity framing.
+# ══════════════════════════════════════════════════════════════════════
+
+_DIRECTIVE_SEPARATOR = "\n\n---\n\n"
+
+
+def compose_reflection_system(directive: str) -> str:
+    """
+    Compose the system prompt for Sage's internal reflection synthesis.
+
+    Prepends the directive so that reflection is grounded in who Sage is
+    before the reflection task instruction runs. This prevents reflection
+    from drifting toward generic journaling or assistant-like tone.
+
+    The directive is not modified. The return value is ephemeral —
+    it exists only for the duration of one nim_complete call.
+    """
+    return directive.strip() + _DIRECTIVE_SEPARATOR + SAGE_REFLECTION_SYSTEM
+
+
+def compose_curiosity_system(directive: str) -> str:
+    """
+    Compose the system prompt for Sage's curiosity identification.
+
+    Prepends the directive so that what Sage finds genuinely interesting
+    emerges from her actual character, not from a generic topic-extractor.
+    The directive constrains and shapes curiosity without prescribing topics.
+    """
+    return directive.strip() + _DIRECTIVE_SEPARATOR + SAGE_CURIOSITY_SYSTEM
+
+
+def compose_worldview_system(directive: str) -> str:
+    """
+    Compose the system prompt for Sage's worldview synthesis.
+
+    Prepends the directive so that worldview integration produces Sage's
+    genuine processed understanding, not neutral summarization.
+    Her intellectual character (alive, honest about uncertainty, connecting
+    to what she already knew) comes from the directive, not the task prompt.
+    """
+    return directive.strip() + _DIRECTIVE_SEPARATOR + SAGE_WORLDVIEW_SYNTHESIS_SYSTEM
+
+
+# ══════════════════════════════════════════════════════════════════════
 # SAGE-DOMAIN PROMPTS (Sage's internal experience)
 # New in V2 — prompts for Sage's own memory, never mixed with Elliot's
 # ══════════════════════════════════════════════════════════════════════
