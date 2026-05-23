@@ -32,6 +32,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.api.chat import router as chat_router, init_routes as init_chat
+from backend.api.history import router as history_router
 from backend.api.memory import router as memory_router, init_memory_routes
 from backend.api.search import router as search_router, init_search_routes
 from backend.api.directive import router as directive_router
@@ -106,6 +107,7 @@ async def shutdown():
 # ── Routes ────────────────────────────────────────────────────────────
 
 app.include_router(chat_router)
+app.include_router(history_router)
 app.include_router(memory_router)
 app.include_router(search_router)
 app.include_router(directive_router)
