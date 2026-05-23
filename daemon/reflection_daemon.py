@@ -31,6 +31,7 @@ import httpx
 from backend.orchestration.event_bus import publish, subscribe
 from backend.orchestration.session import ConversationSession
 from cognition.reflection.pipeline import run_reflection_cycle
+from cognition.synthesis.state_synthesis import synthesize_state_from_cycle
 from config.settings import DAEMON_COOLDOWN_SECONDS
 from utils.logger import log
 
@@ -40,6 +41,13 @@ class ReflectionDaemon:
     Background daemon that drives dual-domain reflection.
 
     One instance per server process. Constructed in bootstrap.
+
+    Phase 3A additions:
+      - _cycle_lock: asyncio.Lock prevents overlapping reflection cycles.
+        If a cycle is already running when a new trigger fires, the new
+        trigger is silently skipped. No queue; no duplicate state writes.
+      - synthesize_state_from_cycle() called after every successful cycle
+        to persist the continuity snapshot to sage_state.json.
     """
 
     def __init__(
@@ -47,11 +55,13 @@ class ReflectionDaemon:
         session: ConversationSession,
         client: httpx.AsyncClient,
     ):
-        self._session           = session
-        self._client            = client
+        self._session            = session
+        self._client             = client
         self._last_run_ts: float = 0.0
         self._running: bool      = False
         self._task: Optional[asyncio.Task] = None
+        # Phase 3A: mutex — one cycle at a time
+        self._cycle_lock = asyncio.Lock()
 
     # ── Lifecycle ─────────────────────────────────────────────────────
 
@@ -76,6 +86,9 @@ class ReflectionDaemon:
         """
         Called via event bus every time the assistant finishes a response.
         Evaluates whether a reflection cycle should run now.
+
+        Phase 3A: If the mutex is already locked (a cycle is running),
+        silently skip — do NOT queue a second cycle.
         """
         if not self._running:
             return
@@ -87,6 +100,11 @@ class ReflectionDaemon:
             log("daemon", "cooldown_active",
                 elapsed=round(time.time() - self._last_run_ts),
                 required=DAEMON_COOLDOWN_SECONDS)
+            return
+
+        # Phase 3A: mutex guard — skip if a cycle is already in progress
+        if self._cycle_lock.locked():
+            log("daemon", "cycle_skipped_locked")
             return
 
         # Launch as a detached task — the response handler must not block
@@ -101,46 +119,57 @@ class ReflectionDaemon:
         """
         Execute one full dual-domain reflection cycle.
         Updates last-run timestamp and publishes results.
+
+        Phase 3A: The cycle runs under _cycle_lock to prevent overlaps.
+        synthesize_state_from_cycle() is called after a successful cycle
+        to persist the continuity snapshot.
         """
-        self._last_run_ts = time.time()
+        async with self._cycle_lock:
+            self._last_run_ts = time.time()
 
-        digest       = self._session.get_digest()
-        idle_seconds = payload.get("idle_seconds", 0.0)
+            digest       = self._session.get_digest()
+            idle_seconds = payload.get("idle_seconds", 0.0)
 
-        log("daemon", "cycle_start",
-            session_turns=self._session.session_turns,
-            digest_len=len(digest))
+            log("daemon", "cycle_start",
+                session_turns=self._session.session_turns,
+                digest_len=len(digest))
 
-        await publish("daemon_triggered", {
-            "digest":        digest,
-            "session_turns": self._session.session_turns,
-        })
-
-        try:
-            result = await run_reflection_cycle(
-                conversation_digest=digest,
-                client=self._client,
-                idle_seconds=idle_seconds,
-            )
-
-            await publish("daemon_cycle_complete", {
-                "episode_written":   result.episode_written,
-                "emotional_themes":  result.emotional_themes,
-                "library_entries":   result.library_entries,
-                "user_reflection":   result.user_reflection,
-                "sage_reflection":   result.sage_reflection,
-                "curiosities_found": result.curiosities_found,
-                "search_ran":        result.search_ran,
-                "search_topic":      result.search_topic,
-                "duration_seconds":  result.duration_seconds,
+            await publish("daemon_triggered", {
+                "digest":        digest,
+                "session_turns": self._session.session_turns,
             })
 
-            log("daemon", "cycle_complete",
-                duration=result.duration_seconds,
-                search_ran=result.search_ran)
+            try:
+                result = await run_reflection_cycle(
+                    conversation_digest=digest,
+                    client=self._client,
+                    idle_seconds=idle_seconds,
+                )
 
-        except Exception as e:
-            log("daemon", "cycle_error", error=str(e))
+                # Phase 3A: persist continuity snapshot after successful cycle
+                try:
+                    await synthesize_state_from_cycle(result)
+                except Exception as se:
+                    log("daemon", "state_synthesis_error", error=str(se))
+
+                await publish("daemon_cycle_complete", {
+                    "episode_written":   result.episode_written,
+                    "emotional_themes":  result.emotional_themes,
+                    "library_entries":   result.library_entries,
+                    "user_reflection":   result.user_reflection,
+                    "sage_reflection":   result.sage_reflection,
+                    "curiosities_found": result.curiosities_found,
+                    "search_ran":        result.search_ran,
+                    "search_topic":      result.search_topic,
+                    "duration_seconds":  result.duration_seconds,
+                })
+
+                log("daemon", "cycle_complete",
+                    duration=result.duration_seconds,
+                    search_ran=result.search_ran)
+
+            except Exception as e:
+                log("daemon", "cycle_error", error=str(e))
 
     # ── Helpers ───────────────────────────────────────────────────────
 

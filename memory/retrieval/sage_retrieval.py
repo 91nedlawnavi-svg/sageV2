@@ -25,6 +25,7 @@ from memory.embeddings.cache import get_embedding, cosine_similarity
 from memory.sage.reflections import load_all_sage_reflections
 from memory.sage.worldview import load_all_worldview_entries
 from memory.sage.curiosity import load_all_curiosities
+from memory.sage.state import load_sage_state, build_state_injection
 from utils.logger import log
 
 
@@ -56,10 +57,19 @@ async def retrieve_sage_memories(
     Search Sage's internal memory for context relevant to the query.
     Returns a formatted string ready for prompt injection.
     Returns '' if nothing relevant found.
+
+    Phase 3A: The continuity state is prepended as the PRIMARY anchor
+    before any retrieved episodic reflections. State is lightweight and
+    always available; retrieved reflections are secondary episodic recall.
     """
+    # Phase 3A: load continuity state — primary anchor, always prepended
+    state = load_sage_state()
+    state_block = build_state_injection(state)
+
     query_vec = await get_embedding(query, client)
     if query_vec is None:
-        return ""
+        # Return state block alone if embeddings unavailable
+        return state_block if state_block else ""
 
     candidates: list[tuple[str, str]] = []
 
@@ -78,32 +88,38 @@ async def retrieve_sage_memories(
     for path, content in curiosities[-30:]:
         candidates.append((f"sage/curiosity/{path.stem}", content))
 
-    if not candidates:
-        return ""
+    retrieved_block = ""
 
-    tasks = [
-        _score_chunk(query_vec, label, content, client)
-        for label, content in candidates
-    ]
-    results = await asyncio.gather(*tasks)
+    if candidates:
+        tasks = [
+            _score_chunk(query_vec, label, content, client)
+            for label, content in candidates
+        ]
+        results = await asyncio.gather(*tasks)
 
-    scored = [r for r in results if r is not None and r[0] >= threshold]
-    scored.sort(key=lambda x: x[0], reverse=True)
-    top = scored[:top_k]
+        scored = [r for r in results if r is not None and r[0] >= threshold]
+        scored.sort(key=lambda x: x[0], reverse=True)
+        top = scored[:top_k]
 
-    if not top:
-        log("retrieval", "miss", domain="sage", candidates=len(candidates))
-        return ""
+        if top:
+            log("retrieval", "hit",
+                domain="sage",
+                candidates=len(candidates),
+                returned=len(top),
+                top_score=round(top[0][0], 3),
+            )
+            parts = []
+            for score, label, content in top:
+                parts.append(f"[{label}]\n{content.strip()}")
+            retrieved_block = "\n\n".join(parts)
+        else:
+            log("retrieval", "miss", domain="sage", candidates=len(candidates))
 
-    log("retrieval", "hit",
-        domain="sage",
-        candidates=len(candidates),
-        returned=len(top),
-        top_score=round(top[0][0], 3),
-    )
+    # Combine: state first (primary), retrieved second (episodic recall)
+    combined_parts = []
+    if state_block:
+        combined_parts.append(state_block)
+    if retrieved_block:
+        combined_parts.append(retrieved_block)
 
-    parts = []
-    for score, label, content in top:
-        parts.append(f"[{label}]\n{content.strip()}")
-
-    return "\n\n".join(parts)
+    return "\n\n".join(combined_parts)

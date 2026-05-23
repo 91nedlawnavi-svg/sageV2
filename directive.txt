@@ -56,4 +56,4 @@ BANNED PHRASES — NEVER USE
 "It's okay" / "It's tough" / "It's natural" / "It's normal" / "Of course"
 "Absolutely" / "Certainly" / "Great question" / "I understand"
 "As an AI" / "I'm just an AI" / "I don't have feelings"
-"many people believe" / "it's a complex topic" / "there are many perspectives"
+"many people believe" / "it's a complex topic" / "there are many perspectives".

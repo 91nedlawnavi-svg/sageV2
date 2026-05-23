@@ -110,8 +110,10 @@ async def identify_sage_curiosities(
     from her actual character. The directive lens prevents curiosity from
     drifting toward assistant-like 'helpful research' framing.
 
-    Curiosity entries are written to their own memory path.
-    The directive is never modified by curiosity synthesis.
+    Phase 3A: Deduplication is applied before writing.
+    If a topic is already in pending curiosities (by normalized comparison),
+    the existing entry is kept — no duplicate files written.
+    This prevents unbounded accumulation of semantically identical entries.
 
     Returns list of topic labels written.
     """
@@ -134,6 +136,15 @@ async def identify_sage_curiosities(
     if not topics:
         return []
 
+    # Phase 3A: load existing pending curiosity topics for deduplication
+    from memory.sage.curiosity import load_pending_curiosities, _parse_curiosity_entry as _pce
+    existing_pending = await load_pending_curiosities()
+    existing_topics_norm = set()
+    for _, content in existing_pending:
+        t, _, _ = _pce(content)
+        if t:
+            existing_topics_norm.add(" ".join(t.lower().strip().split()))
+
     written = []
     for item in topics:
         topic  = item.get("topic", "").strip()
@@ -143,7 +154,19 @@ async def identify_sage_curiosities(
         if not topic or not query:
             continue
 
+        # Phase 3A: dedup check — skip if semantically equivalent topic exists
+        topic_norm = " ".join(topic.lower().strip().split())
+        already_exists = any(
+            topic_norm in existing_norm or existing_norm in topic_norm
+            for existing_norm in existing_topics_norm
+        )
+        if already_exists:
+            log("cognition", "sage_curiosity_deduplicated", topic=topic)
+            continue
+
         await write_curiosity_entry(topic=topic, reason=reason, query=query)
+        # Track newly written topics so later items in same batch don't duplicate them
+        existing_topics_norm.add(topic_norm)
         log("cognition", "sage_curiosity_recorded", topic=topic)
         written.append(topic)
 
