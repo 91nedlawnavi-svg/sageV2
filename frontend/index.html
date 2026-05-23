@@ -421,6 +421,57 @@
     50%       { opacity: 0.85; }
   }
 
+  /* ── Searching indicator (distinct from thinking) ── */
+  .searching-indicator {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--ai-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    border-bottom-left-radius: 3px;
+    width: fit-content;
+    margin-right: auto;
+  }
+
+  .searching-orb {
+    display: flex;
+    gap: 3px;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .searching-orb span {
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    background: var(--soft);
+    border-radius: 50%;
+    animation: searchPulse 1.4s ease-in-out infinite;
+    opacity: 0.3;
+  }
+  .searching-orb span:nth-child(1) { animation-delay: 0s; }
+  .searching-orb span:nth-child(2) { animation-delay: 0.18s; }
+  .searching-orb span:nth-child(3) { animation-delay: 0.36s; }
+  .searching-orb span:nth-child(4) { animation-delay: 0.54s; }
+  @keyframes searchPulse {
+    0%, 100% { opacity: 0.15; transform: scaleY(0.6); }
+    50%       { opacity: 0.8;  transform: scaleY(1.3); }
+  }
+
+  .searching-label {
+    font-size: 12px;
+    color: var(--soft);
+    font-family: var(--mono);
+    letter-spacing: 0.04em;
+    animation: searchLabelPulse 2s ease-in-out infinite;
+  }
+  @keyframes searchLabelPulse {
+    0%, 100% { opacity: 0.4; }
+    50%       { opacity: 0.9; }
+  }
+
   /* ── Input area ── */
   #input-area {
     padding: 12px 16px 16px;
@@ -770,12 +821,15 @@ async function sendMessage() {
   const text = input.value.trim();
   if (!text) return;
 
-  // /search command — V2 Phase2A behavior: no visible bar, typed inline
+  // /search command — show visible user message, then conversational search flow
   if (text.startsWith('/search ')) {
     const query = text.slice(8).trim();
     if (query) {
       input.value = '';
       autoResize(input);
+      hideEmpty();
+      appendBubble('user', text, true);
+      scrollBottom();
       await runSearch(query);
     }
     return;
@@ -833,11 +887,18 @@ async function sendMessage() {
   }
 }
 
-// ── /search — V2 API, no visible search bar ───────────────────────
+// ── /search — conversational search with visible state ─────────────
 async function runSearch(query) {
   if (!query) return;
-  const input = document.getElementById('user-input');
-  input.placeholder = 'searching…';
+
+  // Show "searching the web…" animated indicator
+  const searchingId = 'searching-' + Date.now();
+  appendSearching(searchingId);
+  scrollBottom();
+
+  isStreaming = true;
+  setSendDisabled(true);
+
   try {
     const resp = await fetch('/api/search', {
       method:  'POST',
@@ -845,19 +906,46 @@ async function runSearch(query) {
       body:    JSON.stringify({ query }),
     });
     const data = await resp.json();
+
+    // Remove the searching indicator
+    const searchingEl = document.getElementById(searchingId);
+    if (searchingEl) searchingEl.remove();
+
+    // Store context for grounding (PRESERVED — critical invariant)
     if (data.context_block) {
       _searchContext = data.context_block;
+    }
+
+    // Build conversational assistant reply
+    let replyText = '';
+    if (data.success && data.summary) {
+      replyText = data.summary;
+    } else if (data.result_count === 0) {
+      replyText = `I searched for **"${query}"** but didn't find any relevant results.`;
+    } else {
+      replyText = `I searched for **"${query}"** — ${data.result_count || 0} results found. I've loaded this as context for our conversation.`;
+    }
+
+    // Append assistant bubble with the search summary
+    appendBubble('ai', replyText, true);
+
+    // Update (but don't prominently surface) the context bar — subtle indicator
+    if (data.context_block) {
       searchBar.classList.add('active');
       searchLabel.textContent = `⚬ "${query}" — ${data.result_count || '?'} results`;
-    } else {
-      searchBar.classList.add('active');
-      searchLabel.textContent = '⚬ no results';
     }
+
+    scrollBottom();
+
   } catch(err) {
-    searchBar.classList.add('active');
-    searchLabel.textContent = '⚬ search error';
+    const searchingEl = document.getElementById(searchingId);
+    if (searchingEl) searchingEl.remove();
+    appendBubble('ai', `Search failed — ${err.message}`, true);
+    scrollBottom();
   } finally {
-    input.placeholder = 'type...';
+    isStreaming = false;
+    setSendDisabled(false);
+    document.getElementById('user-input').focus();
   }
 }
 
@@ -991,6 +1079,35 @@ function appendTyping(id) {
 function removeTyping(id) {
   const el = document.getElementById(id);
   if (el) el.remove();
+}
+
+function appendSearching(id) {
+  const container = document.getElementById('messages');
+  const group = document.createElement('div');
+  group.className = 'msg-group';
+  group.id = id;
+
+  const label = document.createElement('div');
+  label.className = 'msg-label ai';
+  label.textContent = 'Sage';
+
+  const indicator = document.createElement('div');
+  indicator.className = 'searching-indicator';
+
+  const orb = document.createElement('div');
+  orb.className = 'searching-orb';
+  orb.innerHTML = '<span></span><span></span><span></span><span></span>';
+
+  const lbl = document.createElement('span');
+  lbl.className = 'searching-label';
+  lbl.textContent = 'searching the web…';
+
+  indicator.appendChild(orb);
+  indicator.appendChild(lbl);
+  group.appendChild(label);
+  group.appendChild(indicator);
+  container.appendChild(group);
+  scrollBottom();
 }
 
 function scrollBottom() {
