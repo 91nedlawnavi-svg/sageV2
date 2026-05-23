@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sage</title>
+  <style>
+    /* ── Reset & base ───────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0f0f0f;
+      --surface:   #161616;
+      --border:    #252525;
+      --muted:     #3a3a3a;
+      --text:      #e8e4dc;
+      --dim:       #7a7570;
+      --accent:    #c8a87a;
+      --sage:      #8fad99;
+      --user:      #7a9cb8;
+      --danger:    #c07070;
+      --radius:    6px;
+      --font:      'Georgia', serif;
+      --mono:      'Courier New', monospace;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 15px;
+      line-height: 1.65;
+    }
+
+    /* ── Layout ─────────────────────────────────────────────────── */
+    #app {
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      grid-template-rows: 48px 1fr auto;
+      grid-template-areas:
+        "header  header"
+        "chat    panel"
+        "input   panel";
+      height: 100vh;
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────── */
+    #header {
+      grid-area: header;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    #header-title {
+      font-size: 16px;
+      letter-spacing: 0.12em;
+      color: var(--accent);
+      font-weight: normal;
+    }
+
+    #header-status {
+      font-size: 11px;
+      color: var(--dim);
+      font-family: var(--mono);
+    }
+
+    /* ── Chat pane ──────────────────────────────────────────────── */
+    #chat {
+      grid-area: chat;
+      overflow-y: auto;
+      padding: 24px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .turn {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-width: 740px;
+    }
+
+    .turn.user   { align-self: flex-end; align-items: flex-end; }
+    .turn.sage   { align-self: flex-start; align-items: flex-start; }
+
+    .turn-label {
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      font-family: var(--mono);
+    }
+    .turn.user  .turn-label { color: var(--user); }
+    .turn.sage  .turn-label { color: var(--sage); }
+
+    .bubble {
+      padding: 11px 16px;
+      border-radius: var(--radius);
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 14.5px;
+    }
+
+    .turn.user .bubble {
+      background: #1a2530;
+      border: 1px solid #253545;
+      color: #d4e4f0;
+    }
+
+    .turn.sage .bubble {
+      background: #151c18;
+      border: 1px solid #1e2e22;
+      color: var(--text);
+    }
+
+    .bubble.streaming::after {
+      content: '▋';
+      animation: blink 0.9s step-end infinite;
+      color: var(--sage);
+      margin-left: 2px;
+    }
+
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+
+    /* ── Input area ─────────────────────────────────────────────── */
+    #input-area {
+      grid-area: input;
+      padding: 14px 20px 18px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* Phase 2A: #search-bar and #search-input removed.
+       User-triggered search now uses /search <query> in the main input.
+       The indicator below shows when search context is loaded. */
+
+    #search-context-indicator {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent);
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #search-context-indicator.active { display: flex; }
+
+    #clear-search-btn {
+      background: none;
+      border: none;
+      color: var(--dim);
+      cursor: pointer;
+      font-size: 13px;
+      padding: 0;
+      line-height: 1;
+    }
+    #clear-search-btn:hover { color: var(--danger); }
+
+    /* Directive pane editor */
+    #directive-editor {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      gap: 8px;
+    }
+    #directive-textarea {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--muted);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1.6;
+      padding: 10px;
+      resize: none;
+      outline: none;
+      min-height: 180px;
+    }
+    #directive-textarea:focus { border-color: var(--accent); }
+    #directive-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    #directive-save-btn {
+      background: transparent;
+      border: 1px solid var(--muted);
+      border-radius: var(--radius);
+      color: var(--dim);
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 4px 14px;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    #directive-save-btn:hover { border-color: var(--accent); color: var(--accent); }
+    #directive-save-btn:disabled { opacity: 0.4; cursor: default; }
+    #directive-status {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--dim);
+    }
+    #directive-status.ok  { color: var(--accent); }
+    #directive-status.err { color: var(--danger); }
+
+    #message-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+
+    #message-input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--muted);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+      padding: 10px 14px;
+      outline: none;
+      resize: none;
+      min-height: 44px;
+      max-height: 140px;
+      overflow-y: auto;
+      line-height: 1.5;
+    }
+
+    #message-input:focus { border-color: var(--sage); }
+    #message-input::placeholder { color: var(--dim); }
+
+    .input-btn {
+      background: transparent;
+      border: 1px solid var(--muted);
+      border-radius: var(--radius);
+      color: var(--dim);
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 9px 16px;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+
+    #send-btn {
+      border-color: var(--sage);
+      color: var(--sage);
+    }
+
+    #send-btn:hover:not(:disabled) {
+      background: var(--sage);
+      color: var(--bg);
+    }
+
+    #send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #retry-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Side panel ─────────────────────────────────────────────── */
+    #panel {
+      grid-area: panel;
+      border-left: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .panel-tab {
+      flex: 1;
+      padding: 9px 4px;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      background: none;
+      border: none;
+      color: var(--dim);
+      cursor: pointer;
+      transition: color 0.15s;
+      border-bottom: 2px solid transparent;
+    }
+
+    .panel-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    .panel-tab:hover:not(.active) { color: var(--text); }
+
+    .panel-pane {
+      display: none;
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px;
+    }
+
+    .panel-pane.active { display: block; }
+
+    .panel-section-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 8px;
+      margin-top: 16px;
+    }
+
+    .panel-section-label:first-child { margin-top: 0; }
+
+    .memory-entry {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 9px 11px;
+      font-size: 12.5px;
+      line-height: 1.55;
+      color: #c8c4bc;
+      margin-bottom: 8px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .sage-entry {
+      border-color: #1e2e22;
+      background: #0e1510;
+      color: #aac4b2;
+    }
+
+    .empty-state {
+      color: var(--dim);
+      font-size: 12px;
+      font-family: var(--mono);
+      text-align: center;
+      padding: 20px 0;
+    }
+
+    /* Library panel */
+    .lib-cat {
+      margin-bottom: 12px;
+    }
+
+    .lib-cat-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 6px;
+    }
+
+    .lib-entry-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 5px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .lib-entry-row:hover { background: var(--border); }
+
+    .lib-delete-btn {
+      background: none;
+      border: none;
+      color: var(--dim);
+      cursor: pointer;
+      font-size: 12px;
+      padding: 0 4px;
+      line-height: 1;
+      opacity: 0;
+    }
+
+    .lib-entry-row:hover .lib-delete-btn { opacity: 1; }
+    .lib-delete-btn:hover { color: var(--danger); }
+
+    /* Status panel */
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 5px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+
+    .status-key { color: var(--dim); font-family: var(--mono); font-size: 11px; }
+    .status-val { color: var(--text); font-family: var(--mono); font-size: 11px; }
+    .status-ok  { color: var(--sage); }
+    .status-warn{ color: var(--accent); }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 3px; }
+
+    /* ── Responsive: collapse panel on small screens ─────────────── */
+    @media (max-width: 700px) {
+      #app {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+          "header"
+          "chat"
+          "input";
+      }
+      #panel { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- Header -->
+  <header id="header">
+    <span id="header-title">✦ sage</span>
+    <span id="header-status">connecting…</span>
+  </header>
+
+  <!-- Chat pane -->
+  <main id="chat"></main>
+
+  <!-- Input area -->
+  <section id="input-area">
+    <!-- Phase 2A: search bar removed — use /search <query> in message input -->
+    <div id="search-context-indicator">
+      <span id="search-context-label">⚬ search context loaded</span>
+      <button id="clear-search-btn" title="Clear search context">✕</button>
+    </div>
+
+    <div id="message-row">
+      <textarea
+        id="message-input"
+        rows="1"
+        placeholder="say something…"
+        autocomplete="off"
+      ></textarea>
+      <button id="send-btn" class="input-btn">send</button>
+      <button id="retry-btn" class="input-btn">retry</button>
+    </div>
+  </section>
+
+  <!-- Side panel -->
+  <aside id="panel">
+    <div class="panel-tabs">
+      <button class="panel-tab active" data-pane="memories">memory</button>
+      <button class="panel-tab"        data-pane="library">library</button>
+      <button class="panel-tab"        data-pane="sage-inner">sage</button>
+      <button class="panel-tab"        data-pane="status">status</button>
+      <button class="panel-tab"        data-pane="directive">directive</button>
+    </div>
+
+    <!-- User memories pane -->
+    <div id="pane-memories" class="panel-pane active">
+      <div class="panel-section-label">recent episodes</div>
+      <div id="episodes-list"><p class="empty-state">loading…</p></div>
+    </div>
+
+    <!-- Library pane -->
+    <div id="pane-library" class="panel-pane">
+      <div id="library-tree"><p class="empty-state">loading…</p></div>
+    </div>
+
+    <!-- Sage inner pane -->
+    <div id="pane-sage-inner" class="panel-pane">
+      <div class="panel-section-label">sage's reflections</div>
+      <div id="sage-reflections-list"><p class="empty-state">loading…</p></div>
+    </div>
+
+    <!-- Status pane -->
+    <div id="pane-status" class="panel-pane">
+      <div class="panel-section-label">system</div>
+      <div id="status-rows"><p class="empty-state">loading…</p></div>
+    </div>
+    <!-- Directive pane — Phase 2A: live-editable identity spine -->
+    <div id="pane-directive" class="panel-pane">
+      <div class="panel-section-label">identity directive</div>
+      <div id="directive-editor">
+        <textarea id="directive-textarea" spellcheck="false" placeholder="Loading directive…"></textarea>
+        <div id="directive-actions">
+          <button id="directive-save-btn">save</button>
+          <span id="directive-status"></span>
+        </div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════
+   Sage V2 — Frontend JavaScript
+   Single-file, no framework, no build step.
+   All state is module-scoped. Polling uses setTimeout loops.
+   ═════════════════════════════════════════════════════════════════ */
+
+'use strict';
+
+// ── State ──────────────────────────────────────────────────────────
+let _streaming      = false;
+let _pollTimer      = null;
+let _currentJid     = null;
+let _pollOffset     = 0;
+let _searchContext  = "";   // structured context block from search
+
+// ── DOM refs ───────────────────────────────────────────────────────
+const chatEl        = document.getElementById('chat');
+const messageInput  = document.getElementById('message-input');
+const sendBtn       = document.getElementById('send-btn');
+const retryBtn      = document.getElementById('retry-btn');
+// Phase 2A: searchInput + searchBtn removed — search via /search command
+const searchInd     = document.getElementById('search-context-indicator');
+const searchLabel   = document.getElementById('search-context-label');
+const clearSearchBtn= document.getElementById('clear-search-btn');
+const headerStatus  = document.getElementById('header-status');
+const directiveTA   = document.getElementById('directive-textarea');
+const directiveSave = document.getElementById('directive-save-btn');
+const directiveStat = document.getElementById('directive-status');
+
+// ── Panel tabs ─────────────────────────────────────────────────────
+document.querySelectorAll('.panel-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel-pane').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    const paneId = 'pane-' + tab.dataset.pane;
+    document.getElementById(paneId)?.classList.add('active');
+    // Refresh data when switching
+    if (tab.dataset.pane === 'memories')   loadUserMemories();
+    if (tab.dataset.pane === 'library')    loadLibrary();
+    if (tab.dataset.pane === 'sage-inner') loadSageReflections();
+    if (tab.dataset.pane === 'status')     loadStatus();
+    if (tab.dataset.pane === 'directive')  loadDirective();
+  });
+});
+
+// ── Auto-resize textarea ───────────────────────────────────────────
+messageInput.addEventListener('input', () => {
+  messageInput.style.height = 'auto';
+  messageInput.style.height = Math.min(messageInput.scrollHeight, 140) + 'px';
+});
+
+// ── Send on Enter (Shift+Enter for newline) ────────────────────────
+messageInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    if (!_streaming) sendMessage();
+  }
+});
+
+sendBtn.addEventListener('click', () => { if (!_streaming) sendMessage(); });
+retryBtn.addEventListener('click', () => { if (!_streaming) retryMessage(); });
+
+// ── Search context clear ──────────────────────────────────────────
+clearSearchBtn.addEventListener('click', () => {
+  _searchContext = "";
+  searchInd.classList.remove('active');
+  searchLabel.textContent = '⚬ search context loaded';
+});
+
+// ── Core: send message ─────────────────────────────────────────────
+// Phase 2A: /search <query> command replaces the literal search input.
+// Typing /search <query> in the message box fetches web context and
+// loads it into _searchContext without sending a chat message.
+// The next message you send will include that context.
+async function sendMessage() {
+  const text = messageInput.value.trim();
+  if (!text) return;
+
+  // /search command intercept
+  if (text.startsWith('/search ')) {
+    const query = text.slice(8).trim();
+    if (query) {
+      messageInput.value = '';
+      messageInput.style.height = 'auto';
+      await runSearch(query);
+    }
+    return;
+  }
+
+  appendTurn('user', text);
+  messageInput.value = '';
+  messageInput.style.height = 'auto';
+  setStreaming(true);
+
+  try {
+    const resp = await fetch('/api/chat', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ message: text, search_context: _searchContext }),
+    });
+    const { jid } = await resp.json();
+
+    if (_searchContext) {
+      _searchContext = "";
+      searchInd.classList.remove('active');
+    }
+
+    startPolling(jid);
+  } catch (err) {
+    appendTurn('sage', `⚠️ Could not reach Sage. (${err.message})`);
+    setStreaming(false);
+  }
+}
+
+// ── Core: retry ────────────────────────────────────────────────────
+async function retryMessage() {
+  setStreaming(true);
+  try {
+    const resp = await fetch('/api/retry', { method: 'POST' });
+    const { jid } = await resp.json();
+    startPolling(jid);
+  } catch (err) {
+    appendTurn('sage', `⚠️ Retry failed. (${err.message})`);
+    setStreaming(false);
+  }
+}
+
+// ── Polling ────────────────────────────────────────────────────────
+function startPolling(jid) {
+  _currentJid  = jid;
+  _pollOffset  = 0;
+  const bubble = appendTurn('sage', '', true);  // streaming bubble
+  schedulePoll(bubble);
+}
+
+function schedulePoll(bubble) {
+  _pollTimer = setTimeout(() => poll(bubble), 80);
+}
+
+async function poll(bubble) {
+  try {
+    const resp = await fetch(`/api/poll/${_currentJid}?frm=${_pollOffset}`);
+    if (!resp.ok) { finishStreaming(bubble); return; }
+
+    const data = await resp.json();
+
+    if (data.text) {
+      bubble.textContent += data.text;
+      _pollOffset += data.new_count;
+      scrollChat();
+    }
+
+    if (data.status === 'thinking' && bubble.textContent === '') {
+      bubble.textContent = '';
+    }
+
+    if (data.done) {
+      finishStreaming(bubble);
+    } else {
+      schedulePoll(bubble);
+    }
+  } catch (err) {
+    bubble.textContent += `\n⚠️ Poll error: ${err.message}`;
+    finishStreaming(bubble);
+  }
+}
+
+function finishStreaming(bubble) {
+  bubble.classList.remove('streaming');
+  setStreaming(false);
+  refreshPanels();
+}
+
+// ── Search (invoked by /search command — no visible search bar) ───
+// Phase 2A: runSearch(query) is internal infrastructure called only
+// when the user types /search <query> in the main message input.
+async function runSearch(query) {
+  if (!query) return;
+
+  messageInput.placeholder = `searching: ${query}…`;
+
+  try {
+    const resp = await fetch('/api/search', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ query }),
+    });
+    const data = await resp.json();
+
+    if (data.context_block) {
+      _searchContext = data.context_block;
+      searchInd.classList.add('active');
+      searchLabel.textContent = `⚬ "${query}" — ${data.result_count} results`;
+    } else {
+      searchLabel.textContent = '⚠ no results';
+      searchInd.classList.add('active');
+    }
+  } catch (err) {
+    searchLabel.textContent = '⚠ search error';
+    searchInd.classList.add('active');
+  } finally {
+    messageInput.placeholder = '';
+  }
+}
+
+// ── DOM helpers ────────────────────────────────────────────────────
+function appendTurn(role, text, streaming = false) {
+  const turn = document.createElement('div');
+  turn.className = `turn ${role === 'user' ? 'user' : 'sage'}`;
+
+  const label = document.createElement('div');
+  label.className = 'turn-label';
+  label.textContent = role === 'user' ? 'you' : 'sage';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble' + (streaming ? ' streaming' : '');
+  bubble.textContent = text;
+
+  turn.appendChild(label);
+  turn.appendChild(bubble);
+  chatEl.appendChild(turn);
+  scrollChat();
+  return bubble;
+}
+
+function scrollChat() {
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+function setStreaming(v) {
+  _streaming           = v;
+  sendBtn.disabled     = v;
+  messageInput.disabled = v;
+}
+
+// ── Panel data loaders ─────────────────────────────────────────────
+function refreshPanels() {
+  const activePaneTab = document.querySelector('.panel-tab.active')?.dataset?.pane;
+  if (activePaneTab === 'memories')   loadUserMemories();
+  if (activePaneTab === 'library')    loadLibrary();
+  if (activePaneTab === 'sage-inner') loadSageReflections();
+  if (activePaneTab === 'status')     loadStatus();
+  // directive pane does NOT auto-refresh — user edits should not be clobbered
+}
+
+// ── Directive pane ─────────────────────────────────────────────────
+// Phase 2A: live-editable identity spine.
+// Loads directive.txt content into the textarea for editing.
+// Saving POSTs to /api/directive and the backend writes to disk atomically.
+// The directive is never auto-refreshed mid-edit to prevent clobber.
+async function loadDirective() {
+  if (!directiveTA) return;
+  directiveTA.value = '';
+  directiveStat.textContent = 'loading…';
+  directiveStat.className = '';
+  try {
+    const resp = await fetch('/api/directive');
+    const data = await resp.json();
+    directiveTA.value       = data.content || '';
+    directiveStat.textContent = '';
+  } catch (err) {
+    directiveStat.textContent = '⚠ load error';
+    directiveStat.className = 'err';
+  }
+}
+
+directiveSave?.addEventListener('click', async () => {
+  const content = directiveTA?.value?.trim();
+  if (!content) return;
+  directiveSave.disabled      = true;
+  directiveStat.textContent   = 'saving…';
+  directiveStat.className     = '';
+  try {
+    const resp = await fetch('/api/directive', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ content }),
+    });
+    const data = await resp.json();
+    if (data.ok) { directiveStat.textContent = 'saved.'; directiveStat.className = 'ok'; }
+    else         { directiveStat.textContent = 'error.'; directiveStat.className = 'err'; }
+  } catch (err) {
+    directiveStat.textContent = 'failed.';
+    directiveStat.className = 'err';
+  } finally {
+    directiveSave.disabled = false;
+  }
+});
+
+
+async function loadUserMemories() {
+  const el = document.getElementById('episodes-list');
+  try {
+    const { episodes } = await (await fetch('/api/memories/user?n=8')).json();
+    if (!episodes?.length) { el.innerHTML = '<p class="empty-state">no episodes yet</p>'; return; }
+    el.innerHTML = episodes.map(ep =>
+      `<div class="memory-entry">${escHtml(ep)}</div>`
+    ).join('');
+  } catch { el.innerHTML = '<p class="empty-state">unavailable</p>'; }
+}
+
+async function loadLibrary() {
+  const el = document.getElementById('library-tree');
+  try {
+    const { library } = await (await fetch('/api/library')).json();
+    const cats = Object.entries(library);
+    if (!cats.some(([, names]) => names.length)) {
+      el.innerHTML = '<p class="empty-state">library empty</p>'; return;
+    }
+    el.innerHTML = cats.map(([cat, names]) => {
+      if (!names.length) return '';
+      const rows = names.map(name =>
+        `<div class="lib-entry-row" onclick="viewLibEntry('${escAttr(cat)}','${escAttr(name)}')">
+           <span>${escHtml(name.replace(/_/g,' '))}</span>
+           <button class="lib-delete-btn" onclick="deleteLibEntry(event,'${escAttr(cat)}','${escAttr(name)}')" title="delete">✕</button>
+         </div>`
+      ).join('');
+      return `<div class="lib-cat">
+        <div class="lib-cat-label">${escHtml(cat)}</div>
+        ${rows}
+      </div>`;
+    }).join('');
+  } catch { el.innerHTML = '<p class="empty-state">unavailable</p>'; }
+}
+
+async function viewLibEntry(cat, name) {
+  try {
+    const { content } = await (await fetch(`/api/library/${cat}/${name}`)).json();
+    alert(`[${cat}/${name}]\n\n${content}`);
+  } catch { alert('Could not load entry.'); }
+}
+
+async function deleteLibEntry(e, cat, name) {
+  e.stopPropagation();
+  if (!confirm(`Delete "${name}" from ${cat}?`)) return;
+  try {
+    await fetch(`/api/library/${cat}/${name}`, { method: 'DELETE' });
+    loadLibrary();
+  } catch { alert('Delete failed.'); }
+}
+
+async function loadSageReflections() {
+  const el = document.getElementById('sage-reflections-list');
+  try {
+    const { reflections } = await (await fetch('/api/memories/sage?n=5')).json();
+    if (!reflections?.length) { el.innerHTML = '<p class="empty-state">no reflections yet</p>'; return; }
+    el.innerHTML = reflections.map(r =>
+      `<div class="memory-entry sage-entry">${escHtml(r)}</div>`
+    ).join('');
+  } catch { el.innerHTML = '<p class="empty-state">unavailable</p>'; }
+}
+
+async function loadStatus() {
+  const el = document.getElementById('status-rows');
+  try {
+    const d = await (await fetch('/api/status')).json();
+    const budget = d.search_budget || {};
+    el.innerHTML = [
+      row('server',         'ok', 'ok'),
+      row('session turns',  d.session_turns),
+      row('history turns',  d.history_turns),
+      row('daemon',         d.daemon_running ? 'running' : 'stopped',
+                            d.daemon_running ? 'ok' : 'warn'),
+      row('memory domains', (d.memory_domains||[]).join(', ')),
+      row('search today',   `${budget.count||0} / ${budget.max||10}`),
+      row('search budget',  `${budget.remaining||0} remaining`,
+                            (budget.remaining > 0) ? 'ok' : 'warn'),
+    ].join('');
+
+    headerStatus.textContent = `turns: ${d.session_turns}  |  daemon: ${d.daemon_running ? 'on' : 'off'}`;
+  } catch {
+    el.innerHTML = '<p class="empty-state">unavailable</p>';
+    headerStatus.textContent = 'disconnected';
+  }
+}
+
+function row(key, val, cls = '') {
+  const valClass = cls ? ` status-${cls}` : '';
+  return `<div class="status-row">
+    <span class="status-key">${escHtml(key)}</span>
+    <span class="status-val${valClass}">${escHtml(String(val))}</span>
+  </div>`;
+}
+
+// ── String helpers ─────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) {
+  return String(s).replace(/'/g,"\\'");
+}
+
+// ── Boot ───────────────────────────────────────────────────────────
+(async function boot() {
+  try {
+    await loadStatus();
+    await loadUserMemories();
+  } catch { /* server may not be ready yet */ }
+})();
+</script>
+</body>
+</html>

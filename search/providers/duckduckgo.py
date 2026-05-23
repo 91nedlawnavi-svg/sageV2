@@ -51,8 +51,13 @@ async def search_duckduckgo(
 
     results = []
     try:
-        with DDGS() as ddgs:
-            for r in ddgs.text(query, max_results=max_results):
+        with DDGS(timeout=20) as ddgs:
+            for r in ddgs.text(
+                query,
+                region="wt-wt",
+                safesearch="off",
+                max_results=max_results,
+            ):
                 results.append(SearchResult(
                     title   = r.get("title", ""),
                     url     = r.get("href", ""),

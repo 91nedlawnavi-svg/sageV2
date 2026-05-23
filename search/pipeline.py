@@ -22,7 +22,7 @@ from typing import Optional
 
 import httpx
 
-from search.providers.duckduckgo import search_duckduckgo
+from search.providers.searxng import search_searxng
 from search.summarization.summarizer import summarize_results, build_search_context_block
 from memory.storage.base import ensure_dirs, ts_filename, write_memory_entry
 from config.settings import SEARCHES_DIR
@@ -63,7 +63,7 @@ async def run_search(
     log("search", "pipeline_start", query=query, initiator=initiator, reason=reason)
 
     # Step 1: Fetch results from provider
-    results = await search_duckduckgo(query)
+    results = await search_searxng(query)
 
     # Step 2: Summarize
     summary = await summarize_results(query, results, client)
