@@ -1,1061 +1,1434 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sage</title>
-  <style>
-    /* ── Reset ──────────────────────────────────────────────────────── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>elliot@archnode</title>
+<style>
+  :root {
+    --bg:        #0f0f0f;
+    --bg2:       #171717;
+    --bg3:       #1f1f1f;
+    --bg4:       #262626;
+    --border:    #2a2a2a;
+    --border2:   #333333;
+    --text:      #efefef;
+    --muted:     #737373;
+    --soft:      #a3a3a3;
+    --accent:    #efefef;
+    --accent-dim:#404040;
+    --user-bg:   #1a1a1a;
+    --ai-bg:     #0f0f0f;
+    --radius:    12px;
+    --mono:      ui-monospace, 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+    --sans:      -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  }
 
-    :root {
-      --bg:        #0e0e0e;
-      --surface:   #141414;
-      --border:    #222222;
-      --muted:     #333333;
-      --text:      #e2ddd5;
-      --dim:       #6a6560;
-      --dim2:      #4a4540;
-      --accent:    #c8a87a;
-      --sage:      #8aab94;
-      --user:      #7090a8;
-      --danger:    #b86868;
-      --font:      'Georgia', 'Times New Roman', serif;
-      --mono:      'Courier New', monospace;
-      --chat-max:  640px;
-    }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    html, body {
-      height: 100%;
-      background: var(--bg);
-      color: var(--text);
-      font-family: var(--font);
-      font-size: 15px;
-      line-height: 1.7;
-    }
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.6;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
 
-    /* ── Root layout: single column, conversation-first ────────────── */
-    #app {
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      max-width: 760px;
-      margin: 0 auto;
-      position: relative;
-    }
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    max-width: 760px;
+    margin: 0 auto;
+    position: relative;
+  }
 
-    /* ── Identity mark — minimal, near-invisible ────────────────────── */
-    #identity-mark {
-      position: fixed;
-      top: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 100%;
-      max-width: 760px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 14px 24px 10px;
-      pointer-events: none;
-      z-index: 10;
-      /* Fades away as you scroll into conversation */
-      background: linear-gradient(to bottom, var(--bg) 60%, transparent);
-    }
+  /* ── Header ── */
+  #header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    height: 56px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    flex-shrink: 0;
+    z-index: 10;
+  }
 
-    #mark-name {
-      font-size: 13px;
-      letter-spacing: 0.22em;
-      color: var(--dim);
-      font-family: var(--mono);
-      font-weight: normal;
-      text-transform: lowercase;
-      pointer-events: none;
-      user-select: none;
-    }
+  #header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
 
-    #mark-name.connected {
-      color: var(--dim);
-    }
+  #status-dot {
+    display: inline-block;
+    width: 7px; height: 7px;
+    background: #3d8b3d;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
 
-    /* The only interactive element in the top bar: inner-pane trigger */
-    #panel-trigger {
-      width: 28px;
-      height: 28px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: none;
-      border: none;
-      cursor: pointer;
-      color: var(--dim2);
-      font-size: 15px;
-      pointer-events: all;
-      transition: color 0.2s;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-    #panel-trigger:hover { color: var(--dim); }
-    #panel-trigger.open  { color: var(--accent); }
+  #header-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
 
-    /* ── Chat scroll container ──────────────────────────────────────── */
-    #chat {
-      flex: 1;
-      overflow-y: auto;
-      padding: 60px 24px 12px;
-      display: flex;
-      flex-direction: column;
-      /* No explicit gap — turns use margin for breathing */
-    }
+  #header-sub {
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 400;
+  }
 
-    /* ── Conversation turns ─────────────────────────────────────────── */
-    .turn {
-      display: flex;
-      flex-direction: column;
-      max-width: var(--chat-max);
-      margin-bottom: 28px;
-    }
+  #header-sep {
+    width: 1px;
+    height: 14px;
+    background: var(--border2);
+  }
 
-    .turn.user {
-      align-self: flex-end;
-      align-items: flex-end;
-    }
+  #menu-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    cursor: pointer;
+    width: 34px; height: 34px;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  #menu-btn:hover { border-color: var(--border2); background: var(--bg3); color: var(--soft); }
+  #menu-btn span {
+    display: block;
+    width: 14px;
+    height: 1.5px;
+    background: currentColor;
+    border-radius: 1px;
+  }
 
-    .turn.sage {
-      align-self: flex-start;
-      align-items: flex-start;
-      padding-left: 14px;
-      border-left: 1px solid #1e2e24;
-    }
+  /* ── Drawer ── */
+  #drawer {
+    position: fixed;
+    top: 0; right: 0;
+    width: min(320px, 90vw);
+    height: 100dvh;
+    background: var(--bg2);
+    border-left: 1px solid var(--border);
+    z-index: 100;
+    transform: translateX(100%);
+    transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+  }
+  #drawer.open { transform: translateX(0); }
 
-    /* Turn label — very small, very quiet */
-    .turn-label {
-      font-size: 9px;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      font-family: var(--mono);
-      margin-bottom: 5px;
-      user-select: none;
-    }
-    .turn.user  .turn-label { color: var(--dim2); }
-    .turn.sage  .turn-label { color: #364d3c; }
+  #drawer-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 99;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s;
+  }
+  #drawer-overlay.show { opacity: 1; pointer-events: all; }
 
-    /* Message text — no bounding box, no background fill */
-    .bubble {
-      font-size: 14.5px;
-      line-height: 1.78;
-      white-space: pre-wrap;
-      word-break: break-word;
-      color: var(--text);
-    }
+  #drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    height: 56px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
 
-    /* User text is slightly dimmer — Sage is the primary voice */
-    .turn.user .bubble {
-      color: #aabcc8;
-      text-align: right;
-    }
+  #drawer-header-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+  }
 
-    .turn.sage .bubble {
-      color: var(--text);
-    }
+  #drawer-close {
+    background: none; border: none;
+    color: var(--muted); cursor: pointer;
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; line-height: 1;
+    transition: background 0.15s, color 0.15s;
+  }
+  #drawer-close:hover { background: var(--bg3); color: var(--text); }
 
-    /* Streaming cursor */
-    .bubble.streaming::after {
-      content: '▋';
-      animation: blink 0.85s step-end infinite;
-      color: var(--sage);
-      opacity: 0.6;
-      margin-left: 2px;
-    }
+  /* ── Drawer tabs ── */
+  #drawer-tabs {
+    display: flex;
+    padding: 8px 12px 0;
+    gap: 2px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+  .drawer-tab {
+    flex: 1;
+    min-width: 0;
+    background: none; border: none;
+    padding: 6px 6px 8px;
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+    margin-bottom: -1px;
+    white-space: nowrap;
+  }
+  .drawer-tab.active { color: var(--text); border-bottom-color: var(--text); }
+  .drawer-tab:hover:not(.active) { color: var(--soft); }
 
-    @keyframes blink {
-      50% { opacity: 0; }
-    }
+  #drawer-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--soft);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  #drawer-content::-webkit-scrollbar { width: 4px; }
+  #drawer-content::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
-    /* ── Input zone ─────────────────────────────────────────────────── */
-    #input-zone {
-      flex-shrink: 0;
-      padding: 10px 24px 22px;
-      position: relative;
-    }
+  /* ── Library tree ── */
+  .tree-cat { margin-bottom: 2px; }
+  .tree-cat-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    user-select: none;
+    transition: background 0.12s, color 0.12s;
+  }
+  .tree-cat-header:hover { background: var(--bg3); color: var(--text); }
+  .tree-arrow {
+    display: inline-block;
+    font-size: 9px;
+    transition: transform 0.18s;
+    color: var(--muted);
+    width: 10px;
+    text-align: center;
+    font-family: var(--mono);
+  }
+  .tree-cat.open .tree-arrow { transform: rotate(90deg); }
+  .tree-files { display: none; padding-left: 18px; margin-top: 1px; }
+  .tree-cat.open .tree-files { display: block; }
+  .tree-file {
+    display: block;
+    width: 100%;
+    background: none; border: none;
+    text-align: left;
+    padding: 5px 8px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--muted);
+    cursor: pointer;
+    border-radius: 5px;
+    transition: background 0.12s, color 0.12s;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .tree-file:hover { background: var(--bg3); color: var(--text); }
+  .tree-file.active { background: var(--bg4); color: var(--text); }
+  .tree-empty { color: var(--border2); font-size: 11px; padding: 4px 8px; font-family: var(--mono); }
+  #tree-file-view { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
 
-    /* Soft fade above the input */
-    #input-zone::before {
-      content: '';
-      position: absolute;
-      top: -32px;
-      left: 0;
-      right: 0;
-      height: 32px;
-      background: linear-gradient(to bottom, transparent, var(--bg));
-      pointer-events: none;
-    }
+  /* ── Memory entries (V2 grafted into V1 drawer style) ── */
+  .memory-entry {
+    font-size: 11.5px;
+    line-height: 1.65;
+    color: var(--muted);
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .memory-entry:last-child { border-bottom: none; }
+  .memory-entry.sage-entry { color: var(--soft); font-style: italic; }
 
-    /* Search context indicator — subtle, inline */
-    #search-context-indicator {
-      display: none;
-      align-items: center;
-      gap: 8px;
-      font-family: var(--mono);
-      font-size: 10px;
-      color: var(--accent);
-      margin-bottom: 7px;
-      padding-left: 2px;
-    }
-    #search-context-indicator.active { display: flex; }
+  .drawer-section-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent-dim);
+    margin-bottom: 8px;
+    margin-top: 14px;
+  }
+  .drawer-section-label:first-child { margin-top: 0; }
 
-    #clear-search-btn {
-      background: none;
-      border: none;
-      color: var(--dim2);
-      cursor: pointer;
-      font-size: 11px;
-      padding: 0;
-      line-height: 1;
-      transition: color 0.15s;
-    }
-    #clear-search-btn:hover { color: var(--danger); }
+  .status-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+  }
+  .status-key { color: var(--muted); }
+  .status-val { color: var(--soft); }
+  .status-ok  { color: #3d8b3d; }
+  .status-warn { color: #b08030; }
 
-    /* Input row */
-    #message-row {
-      display: flex;
-      align-items: flex-end;
-      gap: 10px;
-    }
+  /* ── Messages ── */
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    scroll-behavior: smooth;
+  }
+  #messages::-webkit-scrollbar { width: 4px; }
+  #messages::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
-    #message-input {
-      flex: 1;
-      background: transparent;
-      border: none;
-      border-bottom: 1px solid var(--muted);
-      border-radius: 0;
-      color: var(--text);
-      font-family: var(--font);
-      font-size: 14.5px;
-      padding: 8px 2px;
-      outline: none;
-      resize: none;
-      min-height: 38px;
-      max-height: 130px;
-      overflow-y: auto;
-      line-height: 1.55;
-      transition: border-color 0.2s;
-    }
+  .msg-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    animation: fadeUp 0.18s ease;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
 
-    #message-input:focus { border-bottom-color: var(--sage); }
-    #message-input::placeholder { color: var(--dim2); font-style: italic; }
-    #message-input:disabled { opacity: 0.5; }
+  .msg-label {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 0 4px;
+    margin-bottom: 2px;
+    color: var(--muted);
+  }
+  .msg-label.user { text-align: right; }
+  .msg-label.ai   { text-align: left; }
 
-    /* Send — just a glyph, no border, no label */
-    #send-btn {
-      background: none;
-      border: none;
-      color: var(--dim);
-      font-size: 18px;
-      cursor: pointer;
-      padding: 4px 2px 6px;
-      line-height: 1;
-      transition: color 0.2s;
-      flex-shrink: 0;
-      font-family: var(--mono);
-    }
-    #send-btn:hover:not(:disabled) { color: var(--sage); }
-    #send-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+  .bubble {
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    max-width: 82%;
+    word-break: break-word;
+    font-size: 14px;
+    line-height: 1.65;
+    position: relative;
+  }
+  .bubble.user {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    margin-left: auto;
+    color: var(--text);
+    border-bottom-right-radius: 3px;
+  }
+  .bubble.ai {
+    background: var(--ai-bg);
+    border: 1px solid var(--border);
+    margin-right: auto;
+    color: var(--text);
+    border-bottom-left-radius: 3px;
+  }
 
-    /* Retry — barely visible; accessible but not intrusive */
-    #retry-btn {
-      background: none;
-      border: none;
-      color: var(--dim2);
-      font-size: 11px;
-      cursor: pointer;
-      padding: 4px 2px 6px;
-      line-height: 1;
-      transition: color 0.2s;
-      flex-shrink: 0;
-      font-family: var(--mono);
-      letter-spacing: 0.04em;
-    }
-    #retry-btn:hover { color: var(--accent); }
+  .bubble code {
+    font-family: var(--mono);
+    font-size: 12px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: var(--soft);
+  }
+  .bubble pre {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    overflow-x: auto;
+    margin: 8px 0;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .bubble pre code { background: none; border: none; padding: 0; color: var(--soft); }
+  .bubble strong { font-weight: 600; color: var(--text); }
+  .bubble em { color: var(--soft); font-style: italic; }
 
-    /* ── Inner pane (overlay, slides in from right) ─────────────────── */
-    #inner-pane {
-      position: fixed;
-      top: 0;
-      right: -320px;
-      width: 300px;
-      height: 100vh;
-      background: var(--surface);
-      border-left: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      transition: right 0.28s cubic-bezier(0.4, 0, 0.2, 1);
-      z-index: 100;
-      overflow: hidden;
-    }
+  /* ── Thinking indicator ── */
+  .thinking-indicator {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--ai-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    border-bottom-left-radius: 3px;
+    width: fit-content;
+    margin-right: auto;
+  }
 
-    #inner-pane.open {
-      right: 0;
-    }
+  .thinking-dots {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    flex-shrink: 0;
+  }
 
-    /* Pane header */
-    .pane-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 16px 16px 12px;
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-    }
+  .thinking-dots span {
+    display: inline-block;
+    width: 4px;
+    height: 4px;
+    background: var(--muted);
+    border-radius: 50%;
+    animation: thinkDot 1.6s ease-in-out infinite;
+  }
+  .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes thinkDot {
+    0%, 60%, 100% { opacity: 0.2; transform: translateY(0); }
+    30%           { opacity: 0.9; transform: translateY(-3px); }
+  }
 
-    /* Tab row — compact, monospace, subdued */
-    .pane-tabs {
-      display: flex;
-      gap: 0;
-      flex: 1;
-    }
+  .thinking-label {
+    font-size: 13px;
+    color: var(--muted);
+    font-family: var(--sans);
+    animation: thinkPulse 2.4s ease-in-out infinite;
+  }
+  @keyframes thinkPulse {
+    0%, 100% { opacity: 0.45; }
+    50%       { opacity: 0.85; }
+  }
 
-    .pane-tab {
-      background: none;
-      border: none;
-      color: var(--dim);
-      font-family: var(--mono);
-      font-size: 9.5px;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      cursor: pointer;
-      padding: 4px 9px;
-      transition: color 0.15s;
-      border-bottom: 1px solid transparent;
-      white-space: nowrap;
-    }
+  /* ── Input area ── */
+  #input-area {
+    padding: 12px 16px 16px;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+    flex-shrink: 0;
+  }
 
-    .pane-tab.active {
-      color: var(--accent);
-      border-bottom-color: var(--accent);
-    }
+  /* Search context indicator — V2 feature, V1-styled */
+  #search-context-bar {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--soft);
+    margin-bottom: 8px;
+    padding: 0 2px;
+  }
+  #search-context-bar.active { display: flex; }
+  #clear-search-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0;
+    line-height: 1;
+    transition: color 0.15s;
+    font-family: var(--mono);
+  }
+  #clear-search-btn:hover { color: var(--text); }
 
-    .pane-tab:hover:not(.active) { color: var(--text); }
+  #input-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 8px 8px 8px 14px;
+    transition: border-color 0.15s;
+  }
+  #input-row:focus-within {
+    border-color: var(--border2);
+    box-shadow: 0 0 0 3px rgba(255,255,255,0.04);
+  }
 
-    /* Close button */
-    #pane-close {
-      background: none;
-      border: none;
-      color: var(--dim2);
-      font-size: 16px;
-      cursor: pointer;
-      padding: 0 0 0 8px;
-      line-height: 1;
-      transition: color 0.15s;
-      flex-shrink: 0;
-    }
-    #pane-close:hover { color: var(--dim); }
+  #user-input {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.55;
+    resize: none;
+    max-height: 160px;
+    min-height: 22px;
+    overflow-y: auto;
+    padding: 2px 0;
+  }
+  #user-input::placeholder { color: var(--muted); }
+  #user-input::-webkit-scrollbar { width: 3px; }
+  #user-input::-webkit-scrollbar-thumb { background: var(--border); }
 
-    /* Pane content areas */
-    .pane-content {
-      display: none;
-      flex: 1;
-      overflow-y: auto;
-      padding: 16px;
-    }
-    .pane-content.active { display: block; }
+  #send-btn {
+    background: var(--text);
+    border: none;
+    color: var(--bg);
+    width: 34px; height: 34px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  #send-btn:hover { opacity: 0.88; }
+  #send-btn:active { transform: scale(0.93); }
+  #send-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+  #send-btn svg { width: 15px; height: 15px; }
 
-    /* Memory / reflection entries */
-    .memory-entry {
-      font-size: 12px;
-      line-height: 1.6;
-      color: #b0aca4;
-      margin-bottom: 12px;
-      padding-bottom: 12px;
-      border-bottom: 1px solid var(--border);
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-    .memory-entry:last-child { border-bottom: none; margin-bottom: 0; }
+  #hint {
+    margin-top: 7px;
+    font-size: 11px;
+    color: var(--accent-dim);
+    text-align: center;
+  }
 
-    .sage-entry {
-      color: #9ab4a0;
-      font-style: italic;
-    }
+  /* ── Empty state ── */
+  #empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 10px;
+    user-select: none;
+  }
+  #empty-glyph {
+    width: 40px; height: 40px;
+    border: 1.5px solid var(--border2);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--muted);
+    font-size: 18px;
+  }
+  #empty-title { font-size: 15px; font-weight: 500; color: var(--soft); }
+  #empty-sub   { font-size: 12px; color: var(--muted); }
 
-    .empty-state {
-      color: var(--dim);
-      font-size: 11.5px;
-      font-family: var(--mono);
-      text-align: center;
-      padding: 24px 0;
-    }
+  /* ── Directive editor (V2 func, V1 style) ── */
+  .editor-wrap { display: flex; flex-direction: column; gap: 8px; height: 100%; }
+  .editor-textarea {
+    flex: 1;
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.6;
+    padding: 10px 12px;
+    resize: none;
+    outline: none;
+    min-height: 120px;
+  }
+  .editor-textarea:focus { border-color: var(--soft); }
+  .editor-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .btn-save {
+    background: var(--text); color: var(--bg);
+    border: none; border-radius: 6px;
+    padding: 5px 14px; font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: opacity 0.15s;
+  }
+  .btn-save:hover { opacity: 0.82; }
+  .btn-save:disabled { opacity: 0.3; cursor: not-allowed; }
+  .editor-status { font-size: 11px; color: var(--muted); min-height: 16px; }
+  .editor-status.ok  { color: #3d8b3d; }
+  .editor-status.err { color: #c0392b; }
 
-    /* Section label inside panes — even quieter */
-    .pane-section-label {
-      font-family: var(--mono);
-      font-size: 9px;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--dim2);
-      margin-bottom: 10px;
-      margin-top: 18px;
-    }
-    .pane-section-label:first-child { margin-top: 0; }
+  /* ── Library new-entity form ── */
+  .new-entity-form { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+  .new-entity-form select,
+  .new-entity-form input {
+    background: var(--bg2); border: 1px solid var(--border2);
+    border-radius: 6px; color: var(--text);
+    font-size: 12px; padding: 4px 8px; outline: none;
+  }
+  .new-entity-form select { flex-shrink: 0; }
+  .new-entity-form input  { flex: 1; min-width: 80px; }
+  .btn-new {
+    background: none; color: var(--soft);
+    border: 1px solid var(--border2); border-radius: 6px;
+    padding: 4px 10px; font-size: 12px; cursor: pointer;
+  }
+  .btn-new:hover { border-color: var(--soft); }
 
-    /* Library pane */
-    .lib-cat {
-      margin-bottom: 14px;
-    }
-    .lib-cat-label {
-      font-family: var(--mono);
-      font-size: 9px;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--dim2);
-      margin-bottom: 6px;
-    }
-    .lib-entry-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 4px 6px;
-      border-radius: 3px;
-      cursor: pointer;
-      font-size: 12.5px;
-      color: #b0aca4;
-    }
-    .lib-entry-row:hover { background: var(--border); color: var(--text); }
-    .lib-delete-btn {
-      background: none;
-      border: none;
-      color: var(--dim2);
-      cursor: pointer;
-      font-size: 11px;
-      padding: 0 3px;
-      line-height: 1;
-      opacity: 0;
-      transition: opacity 0.15s, color 0.15s;
-    }
-    .lib-entry-row:hover .lib-delete-btn { opacity: 1; }
-    .lib-delete-btn:hover { color: var(--danger); }
-
-    /* Status pane */
-    .status-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 5px 0;
-      border-bottom: 1px solid var(--border);
-      font-size: 11px;
-    }
-    .status-key { color: var(--dim);  font-family: var(--mono); }
-    .status-val { color: #b0aca4;     font-family: var(--mono); }
-    .status-ok  { color: var(--sage); }
-    .status-warn{ color: var(--accent); }
-
-    /* ── Directive pane — interior configuration, not settings panel ── */
-    #directive-editor {
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-      gap: 10px;
-    }
-
-    /* Subtle descriptor above the textarea — not a label, more like a state */
-    #directive-context-note {
-      font-family: var(--mono);
-      font-size: 9px;
-      letter-spacing: 0.12em;
-      color: var(--dim2);
-      text-transform: lowercase;
-      padding-bottom: 6px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    #directive-textarea {
-      flex: 1;
-      background: transparent;
-      border: none;
-      color: #c8c4bc;
-      font-family: var(--mono);
-      font-size: 11px;
-      line-height: 1.7;
-      padding: 4px 0;
-      resize: none;
-      outline: none;
-      min-height: 200px;
-    }
-    #directive-textarea:focus { color: var(--text); }
-
-    #directive-actions {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      border-top: 1px solid var(--border);
-      padding-top: 8px;
-    }
-
-    #directive-save-btn {
-      background: transparent;
-      border: none;
-      color: var(--dim);
-      font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: 0.08em;
-      padding: 3px 0;
-      cursor: pointer;
-      transition: color 0.15s;
-      text-transform: lowercase;
-    }
-    #directive-save-btn:hover:not(:disabled) { color: var(--accent); }
-    #directive-save-btn:disabled { opacity: 0.3; cursor: default; }
-
-    #directive-status {
-      font-family: var(--mono);
-      font-size: 10px;
-      color: var(--dim2);
-      transition: opacity 0.4s;
-    }
-    #directive-status.ok  { color: var(--sage); }
-    #directive-status.err { color: var(--danger); }
-
-    /* ── Backdrop for inner pane on mobile ──────────────────────────── */
-    #pane-backdrop {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.45);
-      z-index: 99;
-      opacity: 0;
-      transition: opacity 0.28s;
-    }
-    #pane-backdrop.open {
-      display: block;
-      opacity: 1;
-    }
-
-    /* ── Scrollbar ──────────────────────────────────────────────────── */
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 2px; }
-
-    /* ── Responsive ─────────────────────────────────────────────────── */
-    @media (max-width: 540px) {
-      #app { max-width: 100%; }
-      #chat { padding: 54px 16px 10px; }
-      #input-zone { padding: 8px 16px 20px; }
-      #inner-pane { width: 86vw; }
-      #identity-mark { padding: 12px 16px 8px; }
-    }
-  </style>
+  /* ── Responsive ── */
+  @media (max-width: 600px) {
+    #header { padding: 0 12px; }
+    #messages { padding: 16px 12px; }
+    #input-area { padding: 10px 12px 14px; }
+    .bubble { max-width: 92%; }
+    #drawer { width: min(300px, 92vw); }
+  }
+</style>
 </head>
 <body>
-
 <div id="app">
 
-  <!-- Identity mark — fixed, minimal, near-invisible -->
-  <div id="identity-mark">
-    <span id="mark-name">sage</span>
-    <button id="panel-trigger" title="inner" aria-label="open inner pane">⋯</button>
+  <header id="header">
+    <div id="header-left">
+      <span id="status-dot"></span>
+      <span id="header-title">Sage</span>
+      <div id="header-sep"></div>
+      <span id="header-sub">local · llama.cpp</span>
+    </div>
+    <button id="menu-btn" aria-label="Menu" onclick="toggleDrawer()">
+      <span></span><span></span><span></span>
+    </button>
+  </header>
+
+  <div id="drawer-overlay" onclick="closeDrawer()"></div>
+
+  <div id="drawer">
+    <div id="drawer-header">
+      <span id="drawer-header-title">System Files</span>
+      <button id="drawer-close" onclick="closeDrawer()">✕</button>
+    </div>
+    <div id="drawer-tabs">
+      <button class="drawer-tab active" data-tab="directive" onclick="switchTab('directive')">Directive</button>
+      <button class="drawer-tab" data-tab="library" onclick="switchTab('library')">Library</button>
+      <button class="drawer-tab" data-tab="memory" onclick="switchTab('memory')">Memory</button>
+      <button class="drawer-tab" data-tab="inner" onclick="switchTab('inner')">Inner</button>
+      <button class="drawer-tab" data-tab="status" onclick="switchTab('status')">Status</button>
+    </div>
+    <div id="drawer-content">Loading…</div>
   </div>
 
-  <!-- Chat — pure conversation, no bounding infrastructure -->
-  <main id="chat"></main>
+  <div id="messages">
+    <div id="empty">
+      <div id="empty-glyph">◇</div>
+      <div id="empty-title">No messages yet</div>
+      <div id="empty-sub">Start a conversation below</div>
+    </div>
+  </div>
 
-  <!-- Input zone -->
-  <section id="input-zone">
-    <!-- Search context indicator: only appears after /search command -->
-    <div id="search-context-indicator">
+  <div id="input-area">
+    <!-- Search context indicator — V2 feature, inline -->
+    <div id="search-context-bar">
       <span id="search-context-label">⚬ search context loaded</span>
       <button id="clear-search-btn" title="clear search context">✕</button>
     </div>
 
-    <div id="message-row">
-      <textarea
-        id="message-input"
-        rows="1"
-        placeholder="…"
-        autocomplete="off"
-        spellcheck="false"
-      ></textarea>
-      <button id="send-btn" title="send (enter)">↵</button>
-      <button id="retry-btn" title="retry last">↺</button>
-    </div>
-  </section>
-
-</div><!-- /#app -->
-
-<!-- Backdrop (closes pane when clicked outside on mobile) -->
-<div id="pane-backdrop"></div>
-
-<!-- Inner pane — slides in from right, overlay only -->
-<div id="inner-pane">
-
-  <div class="pane-header">
-    <div class="pane-tabs">
-      <button class="pane-tab active" data-pane="memories">memory</button>
-      <button class="pane-tab"        data-pane="library">library</button>
-      <button class="pane-tab"        data-pane="sage-inner">inner</button>
-      <button class="pane-tab"        data-pane="status">status</button>
-      <button class="pane-tab"        data-pane="directive">directive</button>
-    </div>
-    <button id="pane-close" title="close" aria-label="close inner pane">×</button>
-  </div>
-
-  <!-- User memories -->
-  <div id="pane-memories" class="pane-content active">
-    <div class="pane-section-label">recent episodes</div>
-    <div id="episodes-list"><p class="empty-state">loading…</p></div>
-  </div>
-
-  <!-- Library -->
-  <div id="pane-library" class="pane-content">
-    <div id="library-tree"><p class="empty-state">loading…</p></div>
-  </div>
-
-  <!-- Sage inner -->
-  <div id="pane-sage-inner" class="pane-content">
-    <div class="pane-section-label">sage's reflections</div>
-    <div id="sage-reflections-list"><p class="empty-state">loading…</p></div>
-  </div>
-
-  <!-- Status -->
-  <div id="pane-status" class="pane-content">
-    <div class="pane-section-label">system</div>
-    <div id="status-rows"><p class="empty-state">loading…</p></div>
-  </div>
-
-  <!-- Directive — Phase 2A: live-editable identity spine -->
-  <div id="pane-directive" class="pane-content">
-    <div id="directive-editor">
-      <div id="directive-context-note">what sage is</div>
-      <textarea id="directive-textarea" spellcheck="false" placeholder="loading…"></textarea>
-      <div id="directive-actions">
-        <button id="directive-save-btn">write</button>
-        <span id="directive-status"></span>
-      </div>
+    <div id="input-row">
+      <textarea id="user-input" placeholder="type..." rows="1"
+        oninput="autoResize(this)"></textarea>
+      <button id="send-btn" onclick="sendMessage()" title="Send">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"></line>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
+      </button>
     </div>
   </div>
 
-</div><!-- /#inner-pane -->
+</div>
 
 <script>
 /* ══════════════════════════════════════════════════════════════════
-   Sage V2 — Frontend JavaScript  (Phase 2B: Presence Restoration)
-   Single-file, no framework, no build step.
-   All Phase 2A functionality preserved intact.
+   Sage — Phase 2C Frontend
+   Foundation: V1 structure, interaction philosophy, DOM flow
+   Grafted:    V2 directive, memory panes, /search, polling, APIs
    ══════════════════════════════════════════════════════════════════ */
 
-'use strict';
-
 // ── State ──────────────────────────────────────────────────────────
-let _streaming     = false;
-let _pollTimer     = null;
-let _currentJid    = null;
-let _pollOffset    = 0;
-let _searchContext = "";   // structured context block from /search command
-let _paneOpen      = false;
+let isStreaming   = false;
+let currentTab    = 'directive';
+let _searchContext = '';    // V2: search context block from /search command
+let _currentJid   = null;
+let _pollOffset   = 0;
 
 // ── DOM refs ───────────────────────────────────────────────────────
-const chatEl         = document.getElementById('chat');
-const messageInput   = document.getElementById('message-input');
-const sendBtn        = document.getElementById('send-btn');
-const retryBtn       = document.getElementById('retry-btn');
-const searchInd      = document.getElementById('search-context-indicator');
-const searchLabel    = document.getElementById('search-context-label');
-const clearSearchBtn = document.getElementById('clear-search-btn');
-const markName       = document.getElementById('mark-name');
-const panelTrigger   = document.getElementById('panel-trigger');
-const innerPane      = document.getElementById('inner-pane');
-const paneClose      = document.getElementById('pane-close');
-const paneBackdrop   = document.getElementById('pane-backdrop');
-const directiveTA    = document.getElementById('directive-textarea');
-const directiveSave  = document.getElementById('directive-save-btn');
-const directiveStat  = document.getElementById('directive-status');
+const searchBar   = document.getElementById('search-context-bar');
+const searchLabel = document.getElementById('search-context-label');
+const clearSearch = document.getElementById('clear-search-btn');
 
-// ── Inner pane open/close ──────────────────────────────────────────
-function openPane() {
-  _paneOpen = true;
-  innerPane.classList.add('open');
-  paneBackdrop.classList.add('open');
-  panelTrigger.classList.add('open');
-}
-
-function closePane() {
-  _paneOpen = false;
-  innerPane.classList.remove('open');
-  paneBackdrop.classList.remove('open');
-  panelTrigger.classList.remove('open');
-}
-
-panelTrigger.addEventListener('click', () => _paneOpen ? closePane() : openPane());
-paneClose.addEventListener('click', closePane);
-paneBackdrop.addEventListener('click', closePane);
-
-// ── Pane tab switching ─────────────────────────────────────────────
-document.querySelectorAll('.pane-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.pane-tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.pane-content').forEach(p => p.classList.remove('active'));
-    tab.classList.add('active');
-    const paneId = 'pane-' + tab.dataset.pane;
-    document.getElementById(paneId)?.classList.add('active');
-    if (tab.dataset.pane === 'memories')   loadUserMemories();
-    if (tab.dataset.pane === 'library')    loadLibrary();
-    if (tab.dataset.pane === 'sage-inner') loadSageReflections();
-    if (tab.dataset.pane === 'status')     loadStatus();
-    if (tab.dataset.pane === 'directive')  loadDirective();
-  });
-});
-
-// ── Auto-resize textarea ───────────────────────────────────────────
-messageInput.addEventListener('input', () => {
-  messageInput.style.height = 'auto';
-  messageInput.style.height = Math.min(messageInput.scrollHeight, 130) + 'px';
-});
-
-// ── Send on Enter (Shift+Enter for newline) ────────────────────────
-messageInput.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    if (!_streaming) sendMessage();
-  }
-});
-
-sendBtn.addEventListener('click', () => { if (!_streaming) sendMessage(); });
-retryBtn.addEventListener('click', () => { if (!_streaming) retryMessage(); });
-
-// ── Clear search context ───────────────────────────────────────────
-clearSearchBtn.addEventListener('click', () => {
-  _searchContext = "";
-  searchInd.classList.remove('active');
+clearSearch.addEventListener('click', () => {
+  _searchContext = '';
+  searchBar.classList.remove('active');
   searchLabel.textContent = '⚬ search context loaded';
 });
 
-// ── Core: send message ─────────────────────────────────────────────
-// Phase 2A invariant preserved:
-// /search <query> intercepts the input and runs a search.
-// No visible search bar. Search context loads silently.
+// ── Markdown renderer (V1) ─────────────────────────────────────────
+function renderMarkdown(text) {
+  let s = text
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  s = s.replace(/```[\w]*\n([\s\S]*?)```/g, (_, code) =>
+    `<pre><code>${code.trimEnd()}</code></pre>`);
+  s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  s = s.replace(/\n/g, '<br>');
+  return s;
+}
+
+// ── History load (V1 API) ──────────────────────────────────────────
+async function loadHistory() {
+  try {
+    const r = await fetch('/api/history');
+    const data = await r.json();
+    const msgs = data.messages || [];
+    if (msgs.length === 0) return;
+    hideEmpty();
+    msgs.forEach((m, i) => {
+      const grpId = m.role === 'user' ? 'hist-u-' + i : null;
+      appendBubble(m.role, m.content, false, grpId);
+      if (m.role === 'user' && i === msgs.length - 1) addRetryBtn('hist-u-' + i, m.content);
+    });
+    scrollBottom();
+  } catch(e) { console.error('Failed to load history', e); }
+}
+
+// ── Polling (V2 API signature: frm param) ─────────────────────────
+async function pollJob(jid, aiGroupId, typingId) {
+  _currentJid  = jid;
+  _pollOffset  = 0;
+  let bubbleEl = document.getElementById(aiGroupId + '-bubble');
+  let full     = '';
+  let typingShown = !!document.getElementById(typingId);
+
+  return new Promise((resolve) => {
+    const tick = async () => {
+      try {
+        const r = await fetch(`/api/poll/${jid}?frm=${_pollOffset}`);
+
+        if (r.status === 404) {
+          if (typingId && document.getElementById(typingId)) removeTyping(typingId);
+          sessionStorage.removeItem('active_job');
+          resolve(full);
+          return;
+        }
+
+        const d = await r.json();
+
+        if (d.status === 'thinking' || (!d.text && !d.done)) {
+          if (!typingShown && !document.getElementById(typingId)) {
+            appendTyping(typingId);
+            typingShown = true;
+          }
+        }
+
+        if (d.text || d.done) {
+          if (typingId && document.getElementById(typingId)) {
+            removeTyping(typingId);
+            typingId = null;
+          }
+          if (!bubbleEl) bubbleEl = createAiBubble(aiGroupId);
+        }
+
+        if (d.text) {
+          full += d.text;
+          _pollOffset += (d.new_count || d.text.length);
+          bubbleEl.innerHTML = renderMarkdown(full);
+          scrollBottom();
+        }
+
+        if (!d.done) {
+          setTimeout(tick, 200);
+        } else {
+          sessionStorage.removeItem('active_job');
+          if (d.error && bubbleEl) bubbleEl.innerHTML += `<em style="color:#f85149"> [${d.error}]</em>`;
+          resolve(full);
+        }
+      } catch(e) { setTimeout(tick, 1000); }
+    };
+    tick();
+  });
+}
+
+// ── Send message ───────────────────────────────────────────────────
+// V2 invariant: /search inside normal input, no visible search bar
 async function sendMessage() {
-  const text = messageInput.value.trim();
+  if (isStreaming) return;
+  const input = document.getElementById('user-input');
+  const text = input.value.trim();
   if (!text) return;
 
-  // /search command — Phase 2A behavior unchanged
+  // /search command — V2 Phase2A behavior: no visible bar, typed inline
   if (text.startsWith('/search ')) {
     const query = text.slice(8).trim();
     if (query) {
-      messageInput.value = '';
-      messageInput.style.height = 'auto';
+      input.value = '';
+      autoResize(input);
       await runSearch(query);
     }
     return;
   }
 
-  appendTurn('user', text);
-  messageInput.value = '';
-  messageInput.style.height = 'auto';
-  setStreaming(true);
+  input.value = '';
+  autoResize(input);
+  hideEmpty();
+
+  const userGrpId = 'user-' + Date.now();
+  appendBubble('user', text, true, userGrpId);
+  scrollBottom();
+
+  const typingId  = 'typing-' + Date.now();
+  appendTyping(typingId);
+  scrollBottom();
+
+  isStreaming = true;
+  setSendDisabled(true);
+
+  const aiGroupId = 'ai-' + Date.now();
 
   try {
-    const resp = await fetch('/api/chat', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ message: text, search_context: _searchContext }),
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        message: text,
+        search_context: _searchContext || undefined,
+      }),
     });
-    const { jid } = await resp.json();
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    // V2 backend returns {jid} (not {job_id})
+    const jid = data.jid || data.job_id;
+    sessionStorage.setItem('active_job', jid);
 
+    // Clear search context after send (V2 behavior)
     if (_searchContext) {
-      _searchContext = "";
-      searchInd.classList.remove('active');
+      _searchContext = '';
+      searchBar.classList.remove('active');
     }
 
-    startPolling(jid);
-  } catch (err) {
-    appendTurn('sage', `couldn't reach sage. (${err.message})`);
-    setStreaming(false);
+    await pollJob(jid, aiGroupId, typingId);
+  } catch(e) {
+    if (document.getElementById(typingId)) removeTyping(typingId);
+    const bubbleEl = createAiBubble(aiGroupId);
+    showError(bubbleEl, e.message);
+    addRetryBtn(userGrpId, text);
+  } finally {
+    isStreaming = false;
+    setSendDisabled(false);
+    document.getElementById('user-input').focus();
+    scrollBottom();
   }
 }
 
-// ── Core: retry ────────────────────────────────────────────────────
-async function retryMessage() {
-  setStreaming(true);
-  try {
-    const resp = await fetch('/api/retry', { method: 'POST' });
-    const { jid } = await resp.json();
-    startPolling(jid);
-  } catch (err) {
-    appendTurn('sage', `retry failed. (${err.message})`);
-    setStreaming(false);
-  }
-}
-
-// ── Polling ────────────────────────────────────────────────────────
-function startPolling(jid) {
-  _currentJid  = jid;
-  _pollOffset  = 0;
-  const bubble = appendTurn('sage', '', true);
-  schedulePoll(bubble);
-}
-
-function schedulePoll(bubble) {
-  _pollTimer = setTimeout(() => poll(bubble), 80);
-}
-
-async function poll(bubble) {
-  try {
-    const resp = await fetch(`/api/poll/${_currentJid}?frm=${_pollOffset}`);
-    if (!resp.ok) { finishStreaming(bubble); return; }
-
-    const data = await resp.json();
-
-    if (data.text) {
-      bubble.textContent += data.text;
-      _pollOffset += data.new_count;
-      scrollChat();
-    }
-
-    if (data.done) {
-      finishStreaming(bubble);
-    } else {
-      schedulePoll(bubble);
-    }
-  } catch (err) {
-    bubble.textContent += `\n⚠ poll error: ${err.message}`;
-    finishStreaming(bubble);
-  }
-}
-
-function finishStreaming(bubble) {
-  bubble.classList.remove('streaming');
-  setStreaming(false);
-  refreshPanels();
-}
-
-// ── Search — Phase 2A, internal only ──────────────────────────────
+// ── /search — V2 API, no visible search bar ───────────────────────
 async function runSearch(query) {
   if (!query) return;
-  messageInput.placeholder = `searching…`;
-
+  const input = document.getElementById('user-input');
+  input.placeholder = 'searching…';
   try {
     const resp = await fetch('/api/search', {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {'Content-Type': 'application/json'},
       body:    JSON.stringify({ query }),
     });
     const data = await resp.json();
-
     if (data.context_block) {
       _searchContext = data.context_block;
-      searchInd.classList.add('active');
-      searchLabel.textContent = `⚬ "${query}" — ${data.result_count} results`;
+      searchBar.classList.add('active');
+      searchLabel.textContent = `⚬ "${query}" — ${data.result_count || '?'} results`;
     } else {
+      searchBar.classList.add('active');
       searchLabel.textContent = '⚬ no results';
-      searchInd.classList.add('active');
     }
-  } catch (err) {
+  } catch(err) {
+    searchBar.classList.add('active');
     searchLabel.textContent = '⚬ search error';
-    searchInd.classList.add('active');
   } finally {
-    messageInput.placeholder = '…';
+    input.placeholder = 'type...';
   }
 }
 
-// ── DOM helpers ────────────────────────────────────────────────────
-function appendTurn(role, text, streaming = false) {
-  const turn = document.createElement('div');
-  turn.className = `turn ${role === 'user' ? 'user' : 'sage'}`;
+// ── Retry ──────────────────────────────────────────────────────────
+async function retryMessage() {
+  if (isStreaming) return;
+  isStreaming = true;
+  setSendDisabled(true);
+  const typId  = 'retry-t-' + Date.now();
+  const aGrp   = 'ai-retry-' + Date.now();
+  appendTyping(typId);
+  try {
+    const res = await fetch('/api/retry', {method:'POST'});
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const jid  = data.jid || data.job_id;
+    sessionStorage.setItem('active_job', jid);
+    await pollJob(jid, aGrp, typId);
+  } catch(e) {
+    if (document.getElementById(typId)) removeTyping(typId);
+    const bubbleEl = createAiBubble(aGrp);
+    showError(bubbleEl, e.message);
+  } finally {
+    isStreaming = false;
+    setSendDisabled(false);
+    scrollBottom();
+  }
+}
+
+// ── Resume active job on page load ────────────────────────────────
+async function resumeActiveJob() {
+  const jid = sessionStorage.getItem('active_job');
+  if (!jid) return;
+  setSendDisabled(true);
+  const aGrp = 'resume-' + Date.now();
+  const typId = 'resume-t-' + Date.now();
+  await pollJob(jid, aGrp, typId);
+  setSendDisabled(false);
+}
+
+// ── DOM helpers (V1 style) ─────────────────────────────────────────
+function hideEmpty() {
+  const el = document.getElementById('empty');
+  if (el) el.style.display = 'none';
+}
+
+function appendBubble(role, content, animate = true, groupId = null) {
+  const container = document.getElementById('messages');
+  const group = document.createElement('div');
+  group.className = 'msg-group';
+  if (groupId) group.id = groupId;
+  if (!animate) group.style.animation = 'none';
 
   const label = document.createElement('div');
-  label.className = 'turn-label';
-  label.textContent = role === 'user' ? 'you' : 'sage';
+  label.className = `msg-label ${role === 'user' ? 'user' : 'ai'}`;
+  label.textContent = role === 'user' ? 'you' : 'Sage';
 
   const bubble = document.createElement('div');
-  bubble.className = 'bubble' + (streaming ? ' streaming' : '');
-  bubble.textContent = text;
+  bubble.className = `bubble ${role === 'user' ? 'user' : 'ai'}`;
+  bubble.innerHTML = renderMarkdown(content);
 
-  turn.appendChild(label);
-  turn.appendChild(bubble);
-  chatEl.appendChild(turn);
-  scrollChat();
+  group.appendChild(label);
+  group.appendChild(bubble);
+  container.appendChild(group);
   return bubble;
 }
 
-function scrollChat() {
-  chatEl.scrollTop = chatEl.scrollHeight;
+function addRetryBtn(userGroupId, originalText) {
+  const group = document.getElementById(userGroupId);
+  if (!group || group.querySelector('.retry-btn')) return;
+  const btn = document.createElement('button');
+  btn.className = 'retry-btn';
+  btn.textContent = '↺ retry';
+  btn.style.cssText = 'display:block;margin-top:6px;margin-left:auto;background:none;border:1px solid #444;color:#737373;padding:3px 10px;border-radius:6px;cursor:pointer;font-size:10px;font-family:monospace;letter-spacing:.05em;';
+  btn.onclick = () => {
+    btn.remove();
+    retryMessage();
+  };
+  group.appendChild(btn);
 }
 
-function setStreaming(v) {
-  _streaming             = v;
-  sendBtn.disabled       = v;
-  messageInput.disabled  = v;
+function createAiBubble(id) {
+  const container = document.getElementById('messages');
+  const group = document.createElement('div');
+  group.className = 'msg-group';
+  group.id = id;
+
+  const label = document.createElement('div');
+  label.className = 'msg-label ai';
+  label.textContent = 'Sage';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble ai';
+  bubble.id = id + '-bubble';
+
+  group.appendChild(label);
+  group.appendChild(bubble);
+  container.appendChild(group);
+  return bubble;
 }
 
-// ── Panel data loaders ─────────────────────────────────────────────
-function refreshPanels() {
-  if (!_paneOpen) return;
-  const activeTab = document.querySelector('.pane-tab.active')?.dataset?.pane;
-  if (activeTab === 'memories')   loadUserMemories();
-  if (activeTab === 'library')    loadLibrary();
-  if (activeTab === 'sage-inner') loadSageReflections();
-  if (activeTab === 'status')     loadStatus();
-  // directive pane does NOT auto-refresh — user edits must not be clobbered
+function appendTyping(id) {
+  const container = document.getElementById('messages');
+  const group = document.createElement('div');
+  group.className = 'msg-group';
+  group.id = id;
+
+  const label = document.createElement('div');
+  label.className = 'msg-label ai';
+  label.textContent = 'Sage';
+
+  const indicator = document.createElement('div');
+  indicator.className = 'thinking-indicator';
+
+  const dots = document.createElement('div');
+  dots.className = 'thinking-dots';
+  dots.innerHTML = '<span></span><span></span><span></span>';
+
+  const lbl = document.createElement('span');
+  lbl.className = 'thinking-label';
+  lbl.textContent = 'Thinking…';
+
+  indicator.appendChild(dots);
+  indicator.appendChild(lbl);
+  group.appendChild(label);
+  group.appendChild(indicator);
+  container.appendChild(group);
+  scrollBottom();
 }
 
-// ── Directive pane — Phase 2A live-editable identity spine ─────────
-async function loadDirective() {
-  if (!directiveTA) return;
-  directiveTA.value = '';
-  directiveStat.textContent = '';
-  directiveStat.className = '';
-  try {
-    const resp = await fetch('/api/directive');
-    const data = await resp.json();
-    directiveTA.value = data.content || '';
-  } catch (err) {
-    directiveStat.textContent = 'load error';
-    directiveStat.className = 'err';
-  }
+function removeTyping(id) {
+  const el = document.getElementById(id);
+  if (el) el.remove();
 }
 
-directiveSave?.addEventListener('click', async () => {
-  const content = directiveTA?.value?.trim();
-  if (!content) return;
-  directiveSave.disabled    = true;
-  directiveStat.textContent = 'writing…';
-  directiveStat.className   = '';
-  try {
-    const resp = await fetch('/api/directive', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ content }),
-    });
-    const data = await resp.json();
-    if (data.ok) {
-      directiveStat.textContent = 'written.';
-      directiveStat.className   = 'ok';
-      // Fade status out after 2.5s
-      setTimeout(() => {
-        directiveStat.textContent = '';
-        directiveStat.className   = '';
-      }, 2500);
-    } else {
-      directiveStat.textContent = 'error.';
-      directiveStat.className   = 'err';
-    }
-  } catch (err) {
-    directiveStat.textContent = 'failed.';
-    directiveStat.className   = 'err';
-  } finally {
-    directiveSave.disabled = false;
+function scrollBottom() {
+  const el = document.getElementById('messages');
+  el.scrollTop = el.scrollHeight;
+}
+
+function setSendDisabled(v) {
+  document.getElementById('send-btn').disabled = v;
+}
+
+function showError(bubbleEl, msg) {
+  bubbleEl.innerHTML = `<em style="color:#777">error — ${msg}</em>`;
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+}
+
+// ── Keyboard handler ───────────────────────────────────────────────
+document.getElementById('user-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    if (!isStreaming) sendMessage();
   }
 });
 
-// ── Memory loaders ─────────────────────────────────────────────────
-async function loadUserMemories() {
-  const el = document.getElementById('episodes-list');
-  try {
-    const { episodes } = await (await fetch('/api/memories/user?n=8')).json();
-    if (!episodes?.length) { el.innerHTML = '<p class="empty-state">no episodes yet</p>'; return; }
-    el.innerHTML = episodes.map(ep =>
-      `<div class="memory-entry">${escHtml(ep)}</div>`
-    ).join('');
-  } catch { el.innerHTML = '<p class="empty-state">unavailable</p>'; }
+// ── Drawer (V1 structure) ──────────────────────────────────────────
+function toggleDrawer() {
+  const d = document.getElementById('drawer');
+  if (d.classList.contains('open')) closeDrawer();
+  else openDrawer();
 }
 
-async function loadLibrary() {
-  const el = document.getElementById('library-tree');
-  try {
-    const { library } = await (await fetch('/api/library')).json();
-    const cats = Object.entries(library);
-    if (!cats.some(([, names]) => names.length)) {
-      el.innerHTML = '<p class="empty-state">library empty</p>'; return;
-    }
-    el.innerHTML = cats.map(([cat, names]) => {
-      if (!names.length) return '';
-      const rows = names.map(name =>
-        `<div class="lib-entry-row" onclick="viewLibEntry('${escAttr(cat)}','${escAttr(name)}')">
-           <span>${escHtml(name.replace(/_/g,' '))}</span>
-           <button class="lib-delete-btn" onclick="deleteLibEntry(event,'${escAttr(cat)}','${escAttr(name)}')" title="delete">✕</button>
-         </div>`
-      ).join('');
-      return `<div class="lib-cat">
-        <div class="lib-cat-label">${escHtml(cat)}</div>
-        ${rows}
-      </div>`;
-    }).join('');
-  } catch { el.innerHTML = '<p class="empty-state">unavailable</p>'; }
+function openDrawer() {
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('drawer-overlay').classList.add('show');
+  loadTab(currentTab);
 }
 
-async function viewLibEntry(cat, name) {
-  try {
-    const { content } = await (await fetch(`/api/library/${cat}/${name}`)).json();
-    alert(`[${cat}/${name}]\n\n${content}`);
-  } catch { alert('Could not load entry.'); }
+function closeDrawer() {
+  document.getElementById('drawer').classList.remove('open');
+  document.getElementById('drawer-overlay').classList.remove('show');
 }
 
-async function deleteLibEntry(e, cat, name) {
-  e.stopPropagation();
-  if (!confirm(`Delete "${name}" from ${cat}?`)) return;
-  try {
-    await fetch(`/api/library/${cat}/${name}`, { method: 'DELETE' });
-    loadLibrary();
-  } catch { alert('Delete failed.'); }
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.drawer-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.tab === tab);
+  });
+  loadTab(tab);
 }
 
-async function loadSageReflections() {
-  const el = document.getElementById('sage-reflections-list');
-  try {
-    const { reflections } = await (await fetch('/api/memories/sage?n=5')).json();
-    if (!reflections?.length) { el.innerHTML = '<p class="empty-state">no reflections yet</p>'; return; }
-    el.innerHTML = reflections.map(r =>
-      `<div class="memory-entry sage-entry">${escHtml(r)}</div>`
-    ).join('');
-  } catch { el.innerHTML = '<p class="empty-state">unavailable</p>'; }
-}
+// ── Tab content loaders ────────────────────────────────────────────
+async function loadTab(tab) {
+  const el = document.getElementById('drawer-content');
 
-async function loadStatus() {
-  const el = document.getElementById('status-rows');
-  try {
-    const d = await (await fetch('/api/status')).json();
-    const budget = d.search_budget || {};
-    el.innerHTML = [
-      row('server',         'ok', 'ok'),
-      row('session turns',  d.session_turns),
-      row('history turns',  d.history_turns),
-      row('daemon',         d.daemon_running ? 'running' : 'stopped',
-                            d.daemon_running ? 'ok' : 'warn'),
-      row('memory domains', (d.memory_domains||[]).join(', ')),
-      row('search today',   `${budget.count||0} / ${budget.max||10}`),
-      row('search budget',  `${budget.remaining||0} remaining`,
-                            (budget.remaining > 0) ? 'ok' : 'warn'),
-    ].join('');
-  } catch {
-    el.innerHTML = '<p class="empty-state">unavailable</p>';
+  if (tab === 'directive') {
+    await loadDirectiveTab(el);
+  } else if (tab === 'library') {
+    el.style.whiteSpace = 'normal';
+    el.innerHTML = 'Loading…';
+    await loadLibraryTree(el);
+  } else if (tab === 'memory') {
+    el.style.whiteSpace = 'normal';
+    el.innerHTML = 'Loading…';
+    await loadMemoryTab(el);
+  } else if (tab === 'inner') {
+    el.style.whiteSpace = 'normal';
+    el.innerHTML = 'Loading…';
+    await loadInnerTab(el);
+  } else if (tab === 'status') {
+    el.style.whiteSpace = 'normal';
+    el.innerHTML = 'Loading…';
+    await loadStatusTab(el);
   }
 }
 
-function row(key, val, cls = '') {
-  const valClass = cls ? ` status-${cls}` : '';
-  return `<div class="status-row">
-    <span class="status-key">${escHtml(key)}</span>
-    <span class="status-val${valClass}">${escHtml(String(val))}</span>
-  </div>`;
+// ── Directive tab — V2 API (/api/directive GET/POST) ──────────────
+async function loadDirectiveTab(el) {
+  el.style.whiteSpace = 'normal';
+  el.innerHTML = 'Loading…';
+  try {
+    const r = await fetch('/api/directive');
+    const d = await r.json();
+    el.innerHTML = '';
+
+    const wrap = document.createElement('div');
+    wrap.className = 'editor-wrap';
+
+    const ta = document.createElement('textarea');
+    ta.className = 'editor-textarea';
+    ta.value = d.content || '';
+    ta.style.flex = '1';
+
+    const actions = document.createElement('div');
+    actions.className = 'editor-actions';
+
+    const status = document.createElement('div');
+    status.className = 'editor-status';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn-save';
+    saveBtn.textContent = 'Save';
+    saveBtn.onclick = async () => {
+      saveBtn.disabled = true;
+      status.textContent = 'Saving…'; status.className = 'editor-status';
+      try {
+        const res = await fetch('/api/directive', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({content: ta.value})
+        });
+        const j = await res.json();
+        if (j.ok) { status.textContent = 'Saved.'; status.className = 'editor-status ok'; }
+        else       { status.textContent = 'Error.'; status.className = 'editor-status err'; }
+      } catch(e) {
+        status.textContent = 'Failed.'; status.className = 'editor-status err';
+      }
+      saveBtn.disabled = false;
+    };
+
+    actions.appendChild(saveBtn);
+    wrap.appendChild(ta);
+    wrap.appendChild(actions);
+    wrap.appendChild(status);
+    el.appendChild(wrap);
+  } catch(e) { el.textContent = 'Failed to load directive.'; }
 }
 
-// ── String helpers ─────────────────────────────────────────────────
+// ── Library tab — V2 API (/api/library) ───────────────────────────
+async function loadLibraryTree(el) {
+  try {
+    // V2 library API: /api/library returns {library: {cat: [names]}}
+    // V1 library API: /api/library returns {people: [], places: [], topics: []}
+    const r = await fetch('/api/library');
+    const raw = await r.json();
+    // Support both V1 and V2 response shapes
+    const tree = raw.library || raw;
+    el.innerHTML = '';
+
+    const newForm = document.createElement('div');
+    newForm.className = 'new-entity-form';
+
+    const catSel = document.createElement('select');
+    ['people','places','topics'].forEach(c => {
+      const o = document.createElement('option');
+      o.value = o.textContent = c;
+      catSel.appendChild(o);
+    });
+
+    const nameIn = document.createElement('input');
+    nameIn.placeholder = 'entity name…';
+    nameIn.type = 'text';
+
+    const newBtn = document.createElement('button');
+    newBtn.className = 'btn-new';
+    newBtn.textContent = '+ New';
+    newBtn.onclick = async () => {
+      const cat  = catSel.value;
+      const name = nameIn.value.trim();
+      if (!name) return;
+      // Try V2 endpoint first, fallback to V1
+      try {
+        const res = await fetch('/api/library/file/new', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({cat, name})
+        });
+        const j = await res.json();
+        if (j.ok || j.status === 'ok') { nameIn.value = ''; await loadLibraryTree(el); }
+        else alert(j.error || 'Failed');
+      } catch(e) { alert('Failed'); }
+    };
+
+    newForm.appendChild(catSel);
+    newForm.appendChild(nameIn);
+    newForm.appendChild(newBtn);
+    el.appendChild(newForm);
+
+    const treeDiv = document.createElement('div');
+    for (const [cat, files] of Object.entries(tree)) {
+      if (!Array.isArray(files)) continue;
+      const catDiv = document.createElement('div');
+      catDiv.className = 'tree-cat';
+
+      const header = document.createElement('div');
+      header.className = 'tree-cat-header';
+      header.innerHTML = `<span class="tree-arrow">▶</span><span>${cat}</span><span style="margin-left:auto;color:var(--border2);font-size:9px">${files.length}</span>`;
+      header.onclick = () => catDiv.classList.toggle('open');
+
+      const filesDiv = document.createElement('div');
+      filesDiv.className = 'tree-files';
+
+      if (files.length === 0) {
+        filesDiv.innerHTML = '<span class="tree-empty">empty</span>';
+      } else {
+        files.forEach(name => {
+          const btn = document.createElement('button');
+          btn.className = 'tree-file';
+          btn.textContent = name;
+          btn.onclick = () => loadLibraryFile(cat, name, btn, el);
+          filesDiv.appendChild(btn);
+        });
+      }
+
+      catDiv.appendChild(header);
+      catDiv.appendChild(filesDiv);
+      treeDiv.appendChild(catDiv);
+    }
+
+    el.appendChild(treeDiv);
+
+    const viewer = document.createElement('div');
+    viewer.id = 'tree-file-view';
+    viewer.style.display = 'none';
+    el.appendChild(viewer);
+
+  } catch(e) { el.textContent = 'Failed to load library.'; }
+}
+
+async function loadLibraryFile(cat, name, btn, treeEl) {
+  document.querySelectorAll('.tree-file').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  let viewer = document.getElementById('tree-file-view');
+  if (!viewer) {
+    viewer = document.createElement('div');
+    viewer.id = 'tree-file-view';
+    treeEl.appendChild(viewer);
+  }
+  viewer.style.display = 'block';
+  viewer.innerHTML = 'Loading…';
+
+  try {
+    // Try V2 endpoint: /api/library/{cat}/{name}
+    let d;
+    try {
+      const r2 = await fetch(`/api/library/${encodeURIComponent(cat)}/${encodeURIComponent(name)}`);
+      if (r2.ok) { d = await r2.json(); }
+    } catch(e2) {}
+    // Fallback V1: /api/library/file?cat=...&name=...
+    if (!d) {
+      const r1 = await fetch(`/api/library/file?cat=${encodeURIComponent(cat)}&name=${encodeURIComponent(name)}`);
+      d = await r1.json();
+    }
+
+    viewer.innerHTML = '';
+
+    const label = document.createElement('div');
+    label.style.cssText = 'font-size:11px;color:var(--muted);margin-bottom:6px;font-family:var(--mono)';
+    label.textContent = `${cat} / ${name}`;
+
+    const ta = document.createElement('textarea');
+    ta.className = 'editor-textarea';
+    ta.value = d.content || '';
+    ta.rows = 8;
+
+    const actions = document.createElement('div');
+    actions.className = 'editor-actions';
+
+    const status = document.createElement('div');
+    status.className = 'editor-status';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn-save';
+    saveBtn.textContent = 'Save';
+    saveBtn.onclick = async () => {
+      saveBtn.disabled = true;
+      status.textContent = 'Saving…'; status.className = 'editor-status';
+      try {
+        // Try V2 endpoint
+        let ok = false;
+        try {
+          const res2 = await fetch(`/api/library/${encodeURIComponent(cat)}/${encodeURIComponent(name)}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({content: ta.value})
+          });
+          if (res2.ok) { const j = await res2.json(); ok = j.ok || j.status === 'ok'; }
+        } catch(e2) {}
+        // Fallback V1
+        if (!ok) {
+          const res1 = await fetch('/api/library/file', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({cat, name, content: ta.value})
+          });
+          const j1 = await res1.json();
+          ok = j1.ok;
+        }
+        if (ok) { status.textContent = 'Saved.'; status.className = 'editor-status ok'; }
+        else    { status.textContent = 'Error.'; status.className = 'editor-status err'; }
+      } catch(e) { status.textContent = 'Failed.'; status.className = 'editor-status err'; }
+      saveBtn.disabled = false;
+    };
+
+    const delBtn = document.createElement('button');
+    delBtn.style.cssText = 'background:none;color:#c0392b;border:1px solid #c0392b44;border-radius:6px;padding:5px 14px;font-size:12px;cursor:pointer;';
+    delBtn.textContent = 'Delete';
+    delBtn.onclick = async () => {
+      if (!confirm(`Delete ${cat}/${name}?`)) return;
+      try {
+        // Try V2: DELETE /api/library/{cat}/{name}
+        let ok = false;
+        try {
+          const res2 = await fetch(`/api/library/${encodeURIComponent(cat)}/${encodeURIComponent(name)}`, {method: 'DELETE'});
+          if (res2.ok) ok = true;
+        } catch(e2) {}
+        // Fallback V1
+        if (!ok) {
+          const res1 = await fetch(`/api/library/file?cat=${encodeURIComponent(cat)}&name=${encodeURIComponent(name)}`, {method: 'DELETE'});
+          if (res1.ok) ok = true;
+        }
+        if (ok) {
+          viewer.style.display = 'none';
+          viewer.innerHTML = '';
+          if (treeEl) await loadLibraryTree(treeEl);
+        }
+      } catch(e) {}
+    };
+
+    actions.appendChild(saveBtn);
+    actions.appendChild(delBtn);
+    viewer.appendChild(label);
+    viewer.appendChild(ta);
+    viewer.appendChild(actions);
+    viewer.appendChild(status);
+  } catch(e) { viewer.textContent = 'Failed to load.'; }
+}
+
+// ── Memory tab — V2 API (/api/memories/user) ──────────────────────
+async function loadMemoryTab(el) {
+  el.innerHTML = '';
+  const label = document.createElement('div');
+  label.className = 'drawer-section-label';
+  label.textContent = 'Recent episodes';
+  el.appendChild(label);
+
+  try {
+    const r = await fetch('/api/memories/user?n=8');
+    const d = await r.json();
+    const eps = d.episodes || [];
+    if (eps.length === 0) {
+      const p = document.createElement('div');
+      p.style.cssText = 'color:var(--muted);font-size:11px;padding:8px 0;';
+      p.textContent = 'No episodes yet.';
+      el.appendChild(p);
+    } else {
+      eps.forEach(ep => {
+        const div = document.createElement('div');
+        div.className = 'memory-entry';
+        div.textContent = ep;
+        el.appendChild(div);
+      });
+    }
+  } catch(e) {
+    el.innerHTML += '<div style="color:var(--muted);font-size:11px;">Unavailable.</div>';
+  }
+}
+
+// ── Inner tab (Sage reflections) — V2 API (/api/memories/sage) ────
+async function loadInnerTab(el) {
+  el.innerHTML = '';
+  const label = document.createElement('div');
+  label.className = 'drawer-section-label';
+  label.textContent = "Sage's reflections";
+  el.appendChild(label);
+
+  try {
+    const r = await fetch('/api/memories/sage?n=5');
+    const d = await r.json();
+    const refs = d.reflections || [];
+    if (refs.length === 0) {
+      const p = document.createElement('div');
+      p.style.cssText = 'color:var(--muted);font-size:11px;padding:8px 0;';
+      p.textContent = 'No reflections yet.';
+      el.appendChild(p);
+    } else {
+      refs.forEach(ref => {
+        const div = document.createElement('div');
+        div.className = 'memory-entry sage-entry';
+        div.textContent = ref;
+        el.appendChild(div);
+      });
+    }
+  } catch(e) {
+    el.innerHTML += '<div style="color:var(--muted);font-size:11px;">Unavailable.</div>';
+  }
+}
+
+// ── Status tab — V2 API (/api/status) ─────────────────────────────
+async function loadStatusTab(el) {
+  el.innerHTML = '';
+  const label = document.createElement('div');
+  label.className = 'drawer-section-label';
+  label.textContent = 'System';
+  el.appendChild(label);
+
+  try {
+    const r = await fetch('/api/status');
+    const d = await r.json();
+    const budget = d.search_budget || {};
+
+    const rows = [
+      ['server',         'ok',                          'ok'],
+      ['session turns',  d.session_turns,               ''],
+      ['history turns',  d.history_turns,               ''],
+      ['daemon',         d.daemon_running ? 'running' : 'stopped',
+                         d.daemon_running ? 'ok' : 'warn'],
+      ['memory domains', (d.memory_domains||[]).join(', '), ''],
+      ['search today',   `${budget.count||0} / ${budget.max||10}`, ''],
+      ['search budget',  `${budget.remaining||0} remaining`,
+                         (budget.remaining > 0) ? 'ok' : 'warn'],
+    ];
+
+    rows.forEach(([key, val, cls]) => {
+      const row = document.createElement('div');
+      row.className = 'status-row';
+      row.innerHTML = `<span class="status-key">${escHtml(key)}</span><span class="status-val ${cls ? 'status-'+cls : ''}">${escHtml(String(val||''))}</span>`;
+      el.appendChild(row);
+    });
+  } catch(e) {
+    el.innerHTML += '<div style="color:var(--muted);font-size:11px;">Unavailable.</div>';
+  }
+}
+
 function escHtml(s) {
   return String(s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;')
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-function escAttr(s) {
-  return String(s).replace(/'/g,"\\'");
-}
 
 // ── Boot ───────────────────────────────────────────────────────────
-// Header status text removed from primary view.
-// Sage is connected when messages arrive — no uptime banner needed.
-(async function boot() {
-  try {
-    // Pre-warm status silently — no DOM update in primary view
-    await fetch('/api/status').catch(() => {});
-    markName.classList.add('connected');
-  } catch { /* not critical */ }
-})();
+loadHistory();
+resumeActiveJob();
+document.getElementById('user-input').focus();
 </script>
 </body>
 </html>
