@@ -32,6 +32,7 @@ from pathlib import Path
 
 import httpx
 
+from cognition.salience.tracker import register_artifact
 from config.directive import get_directive         # Phase 2A: identity spine
 from config.settings import SAGE_REFLECTIONS_DIR
 from memory.sage.reflections import write_sage_reflection, load_recent_sage_reflections
@@ -54,6 +55,7 @@ async def generate_sage_reflection(
     recent_user_context: str,
     recent_interactions: str,
     client: httpx.AsyncClient,
+    thread_context: str = "",
 ) -> bool:
     """
     Generate Sage's own internal reflection from recent activity.
@@ -62,10 +64,10 @@ async def generate_sage_reflection(
     before the reflection task instruction. This means Sage's reflection
     is always grounded in who she IS, not just what happened.
 
-    The reflection is written to Sage's memory path. It CANNOT write back
-    to directive.txt — that boundary is enforced by the write path:
-    write_sage_reflection() writes to SAGE_REFLECTIONS_DIR, never to
-    directive.txt.
+    Phase 3B: Active cognitive thread context is injected into the user
+    prompt so the reflection model is aware of persistent thought lines.
+    The model may choose to continue a thread, let it rest, or note a
+    connection — but it cannot modify thread metadata.
 
     Returns True if a reflection was written.
     """
@@ -75,13 +77,11 @@ async def generate_sage_reflection(
         log("cognition", "sage_reflection_skipped", reason="no_material")
         return False
 
-    # Phase 2A: directive loaded fresh here (hot-reload semantics).
-    # Each synthesis cycle uses the current directive, not a startup snapshot.
     directive = get_directive()
 
     raw = await nim_complete(
         system=compose_reflection_system(directive),
-        user=sage_reflection_prompt(recent_user_context, recent_interactions),
+        user=sage_reflection_prompt(recent_user_context, recent_interactions, thread_context),
         client=client,
         max_tokens=200,
     )
@@ -93,7 +93,8 @@ async def generate_sage_reflection(
     words = raw.strip().split()[:4]
     label = "_".join(w.lower() for w in words if w.isalpha())[:28]
 
-    await write_sage_reflection(raw.strip(), label=label)
+    path = await write_sage_reflection(raw.strip(), label=label)
+    register_artifact(f"sage/reflection/{path.stem}")
     log("cognition", "sage_reflection_written", label=label)
     return True
 
@@ -164,7 +165,8 @@ async def identify_sage_curiosities(
             log("cognition", "sage_curiosity_deduplicated", topic=topic)
             continue
 
-        await write_curiosity_entry(topic=topic, reason=reason, query=query)
+        path = await write_curiosity_entry(topic=topic, reason=reason, query=query)
+        register_artifact(f"sage/curiosity/{path.stem}")
         # Track newly written topics so later items in same batch don't duplicate them
         existing_topics_norm.add(topic_norm)
         log("cognition", "sage_curiosity_recorded", topic=topic)
@@ -212,6 +214,8 @@ async def integrate_search_into_worldview(
         return False
 
     await write_worldview_entry(topic=topic, perspective=raw.strip(), source="search")
+    from memory.storage.base import safe_stem
+    register_artifact(f"sage/worldview/{safe_stem(topic)}")
     log("cognition", "sage_worldview_updated", topic=topic, had_existing=bool(existing))
     return True
 

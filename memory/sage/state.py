@@ -49,6 +49,10 @@ def _default_state() -> dict:
         "worldview_tensions":     [],
         "active_curiosity_topics": [],
         "self_summary":           "",
+        # Phase 3B additions
+        "active_threads":         [],
+        "orientation_history":    [],
+        "meta_warnings":          [],
     }
 
 
@@ -119,6 +123,8 @@ def build_state_injection(state: dict) -> str:
 
     This is the PRIMARY continuity anchor injected BEFORE retrieved reflections.
     Keep it terse — it is a orientation header, not a memory dump.
+
+    Phase 3B: Includes active cognitive threads and meta-observation warnings.
     """
     parts = []
 
@@ -128,9 +134,14 @@ def build_state_injection(state: dict) -> str:
     if state.get("emotional_orientation"):
         parts.append(f"Current register: {state['emotional_orientation']}")
 
-    focus = state.get("current_focus", [])
-    if focus:
-        parts.append("Active threads: " + "; ".join(focus[:3]))
+    # Phase 3B: cognitive threads replace ad-hoc focus tracking
+    threads = state.get("active_threads", [])
+    if threads:
+        parts.append("Cognitive threads: " + "; ".join(threads[:4]))
+    else:
+        focus = state.get("current_focus", [])
+        if focus:
+            parts.append("Active focus: " + "; ".join(focus[:3]))
 
     questions = state.get("active_questions", [])
     if questions:
@@ -146,6 +157,11 @@ def build_state_injection(state: dict) -> str:
 
     if state.get("recent_synthesis"):
         parts.append(f"Last cycle: {state['recent_synthesis']}")
+
+    # Phase 3B: meta-observation warnings (read-only sensor output)
+    warnings = state.get("meta_warnings", [])
+    if warnings:
+        parts.append("Meta-observations: " + " | ".join(warnings[:3]))
 
     if not parts:
         return ""

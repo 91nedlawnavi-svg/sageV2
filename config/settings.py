@@ -119,6 +119,14 @@ AUTONOMOUS_SEARCH_MAX_PER_DAY = 10   # Level 2 autonomy cap
 AUTONOMOUS_SEARCH_COOLDOWN    = 3600  # minimum seconds between autonomous searches (1 hr)
 
 
+# ── Cognitive threads (Phase 3B) ─────────────────────────────────────
+
+MAX_ACTIVE_THREADS    = 4    # hard cap on concurrent active threads
+MAX_TOTAL_THREADS     = 20   # hard cap on all threads (incl. dormant)
+THREAD_DORMANCY_CYCLES = 12  # cycles without engagement before dormancy
+THREAD_RESOLVE_SALIENCE = 0.10  # auto-resolve when salience drops below this
+
+
 # ── Server ────────────────────────────────────────────────────────────
 
 PORT = 6969

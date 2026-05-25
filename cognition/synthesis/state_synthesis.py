@@ -16,9 +16,17 @@ Design constraints:
   - If the cycle produced nothing, the state is only minimally updated
     (last_updated timestamp and any curiosity merges).
   - No LLM calls here — this is purely deterministic extraction.
+
+Phase 3B additions:
+  - active_threads field populated from thread store (replaces ad-hoc curiosity list)
+  - meta_warnings field populated from observer (read-only sensor output)
+  - emotional_orientation uses rolling window instead of last-write-wins
+  - orientation_history tracked for oscillation detection
 """
 
+from cognition.meta.observer import observe as meta_observe
 from cognition.reflection.pipeline import ReflectionResult
+from cognition.threads.store import build_thread_summary_for_state
 from memory.sage.state import (
     load_sage_state,
     save_sage_state,
@@ -27,6 +35,9 @@ from memory.sage.state import (
 from memory.sage.reflections import load_recent_sage_reflections
 from memory.sage.curiosity import load_pending_curiosities, _parse_curiosity_entry
 from utils.logger import log
+
+# Phase 3B: rolling window size for emotional orientation smoothing
+_ORIENTATION_WINDOW = 4
 
 
 async def synthesize_state_from_cycle(result: ReflectionResult) -> bool:
@@ -38,12 +49,15 @@ async def synthesize_state_from_cycle(result: ReflectionResult) -> bool:
 
     Returns True on successful save.
 
-    State fields updated:
+    Phase 3B state model:
       recent_synthesis        — what happened this cycle (factual)
+      active_threads          — from thread store (deterministic, not accumulated)
       active_curiosity_topics — merged dedup from pending curiosities
       current_focus           — extracted from search topic if ran
-      worldview_tensions      — cleared if worldview was updated (resolved)
-      emotional_orientation   — extracted from emotional themes
+      emotional_orientation   — smoothed from rolling window
+      orientation_history     — last N orientations for oscillation detection
+      meta_warnings           — deterministic flags from observer
+      worldview_tensions      — cleared if worldview was updated
 
     Fields NOT touched here (they persist across cycles):
       self_summary            — updated only explicitly via directive ops
@@ -67,10 +81,18 @@ async def synthesize_state_from_cycle(result: ReflectionResult) -> bool:
     if parts:
         state["recent_synthesis"] = "; ".join(parts)
 
-    # 2. emotional_orientation — derive from themes (brief, not dramatic)
+    # 2. emotional_orientation — Phase 3B: rolling window smoothing
+    #    Instead of overwriting with latest themes, maintain a history
+    #    and compute orientation from the most frequent recent themes.
     if result.emotional_themes:
-        # Take up to 2 themes as orientation
-        state["emotional_orientation"] = ", ".join(result.emotional_themes[:2])
+        orientation_history = state.get("orientation_history", [])
+        current_themes = ", ".join(result.emotional_themes[:2])
+        orientation_history.append(current_themes)
+        orientation_history = orientation_history[-_ORIENTATION_WINDOW:]
+        state["orientation_history"] = orientation_history
+
+        # Compute smoothed orientation: most common theme words across window
+        state["emotional_orientation"] = _smooth_orientation(orientation_history)
 
     # 3. current_focus — update if a search ran (it was a focus topic)
     if result.search_ran and result.search_topic:
@@ -99,19 +121,72 @@ async def synthesize_state_from_cycle(result: ReflectionResult) -> bool:
         log("state", "curiosity_merge_error", error=str(e))
 
     # 5. worldview_tensions — if worldview was updated, tension may be resolved
-    # We don't add tensions here (no LLM), but we can remove resolved ones
-    # by dropping the topic that was just searched/integrated
     if result.worldview_updated and result.search_topic:
         tensions = state.get("worldview_tensions", [])
-        topic_lower = result.search_topic.lower()
         state["worldview_tensions"] = [
             t for t in tensions
             if result.search_topic.lower() not in t.lower()
         ]
 
+    # 6. Phase 3B: active_threads — sourced directly from thread store
+    #    NOT accumulated from previous state — avoids recursive self-reference
+    try:
+        state["active_threads"] = build_thread_summary_for_state()
+    except Exception as e:
+        log("state", "thread_summary_error", error=str(e))
+
+    # 7. Phase 3B: meta-observation — run deterministic sensor
+    try:
+        prev_orientations = state.get("orientation_history", [])
+        meta_result = meta_observe(prev_orientations=prev_orientations)
+        if meta_result.has_warnings:
+            state["meta_warnings"] = meta_result.as_state_flags()
+        else:
+            state["meta_warnings"] = []
+    except Exception as e:
+        log("state", "meta_observe_error", error=str(e))
+
     ok = save_sage_state(state)
     log("state", "synthesis_complete",
         recent_synthesis=state.get("recent_synthesis", ""),
         curiosity_topics=len(state.get("active_curiosity_topics", [])),
+        threads=len(state.get("active_threads", [])),
+        warnings=len(state.get("meta_warnings", [])),
         ok=ok)
     return ok
+
+
+def _smooth_orientation(history: list[str]) -> str:
+    """
+    Compute smoothed emotional orientation from a rolling window.
+
+    Instead of last-write-wins, count theme word frequency across
+    the window and return the most stable/frequent terms.
+
+    This prevents single-cycle emotional events from flipping
+    the entire orientation — stability requires persistence.
+    """
+    if not history:
+        return ""
+
+    # Count word frequency across all entries in the window
+    word_counts: dict[str, int] = {}
+    for entry in history:
+        words = [w.strip().lower() for w in entry.replace(",", " ").split() if len(w) > 2]
+        for w in words:
+            word_counts[w] = word_counts.get(w, 0) + 1
+
+    if not word_counts:
+        return history[-1] if history else ""
+
+    # Return the top themes that appeared in at least half the window
+    min_count = max(1, len(history) // 2)
+    stable_words = [w for w, c in word_counts.items() if c >= min_count]
+
+    if stable_words:
+        # Sort by frequency descending, take top 3
+        stable_words.sort(key=lambda w: word_counts[w], reverse=True)
+        return ", ".join(stable_words[:3])
+
+    # Fallback: most recent entry
+    return history[-1]

@@ -7,15 +7,18 @@ her internal state, recent conversations, and curiosity journal.
 This module evaluates potential triggers — it does NOT execute searches.
 Execution lives in the daemon.
 
-Trigger signals (from spec):
-  - recurring curiosity (same topic appearing in multiple recent entries)
-  - emotional uncertainty (confusion, unresolved tension in sage reflections)
-  - unresolved reflections (pending curiosity journal entries)
-  - contradictory memories (detected topic conflict — Phase 2)
-  - repeated mention patterns (user keeps returning to a topic)
-  - internal philosophical questioning (open questions in sage reflections)
-  - long idle periods (no conversation but memory indicates lingering interest)
-  - evolving interests (sage worldview entries with open questions noted)
+Phase 3B changes:
+  - Thread-aware triggering: curiosities linked to active threads get priority boost
+  - Salience-aware triggering: higher-salience curiosities are prioritized
+  - Anti-fixation: triggers for topics that already have deep threads are deprioritized
+  - Refined question detection: extracts proper clause boundaries instead of raw substrings
+
+Trigger signals:
+  - pending curiosity (from curiosity journal, strongest signal)
+  - thread-linked curiosity (pending curiosity that belongs to an active thread)
+  - open questions in reflections
+  - repeated topic mentions (user keeps returning to something)
+  - long idle period
 
 Triggers should NOT feel robotic. Each one has a reason string that
 feeds into Sage's search context so she understands why she's looking.
@@ -39,6 +42,11 @@ class SearchTrigger:
     priority:  float  # 0.0–1.0, higher = more urgent
 
 
+# Phase 3B: depth at which a thread is "deep enough" that more searching
+# is deprioritized (gives time for integration before more input)
+_DEEP_THREAD_THRESHOLD = 6
+
+
 async def evaluate_triggers(
     recent_digest: str,
     sage_reflections: list[str],
@@ -48,51 +56,88 @@ async def evaluate_triggers(
     """
     Evaluate all trigger signals and return a sorted list of SearchTriggers.
 
-    Called by the daemon's autonomous curiosity cycle.
-    Returns empty list if no triggers fire.
-
-    recent_digest:       recent conversation turns as formatted text
-    sage_reflections:    Sage's most recent internal reflections
-    pending_curiosities: topics from curiosity journal with status=pending
-    idle_seconds:        how long since last conversation turn
+    Phase 3B: Now thread-aware and salience-aware. Curiosities that belong
+    to active threads get a priority boost. Curiosities linked to deep threads
+    (high depth) get deprioritized to prevent fixation.
     """
     triggers: list[SearchTrigger] = []
 
+    # Phase 3B: load thread context for priority modulation
+    try:
+        from cognition.threads.store import get_active_threads, get_thread_by_topic
+        active_threads = get_active_threads()
+        thread_topics = {t.topic: t for t in active_threads}
+    except Exception:
+        active_threads = []
+        thread_topics = {}
+
+    # Phase 3B: load salience for curiosity priority weighting
+    try:
+        from cognition.salience.tracker import get_salience_batch
+        curiosity_keys = []
+        for text in pending_curiosities:
+            topic, _, _ = _parse_curiosity_entry(text)
+            if topic:
+                from memory.storage.base import safe_stem
+                curiosity_keys.append(f"sage/curiosity/{safe_stem(topic)}")
+        salience_map = get_salience_batch(curiosity_keys) if curiosity_keys else {}
+    except Exception:
+        salience_map = {}
+
     # ── Signal 1: Pending curiosity entries ──────────────────────────
-    # Most direct trigger — Sage already identified something she wants to know.
     for curiosity_text in pending_curiosities:
         topic, reason, query = _parse_curiosity_entry(curiosity_text)
-        if topic and query:
-            triggers.append(SearchTrigger(
-                topic=topic,
-                query=query,
-                reason=reason or f"Unresolved curiosity about: {topic}",
-                signal="pending_curiosity",
-                priority=0.85,
-            ))
+        if not topic or not query:
+            continue
+
+        base_priority = 0.75
+
+        # Phase 3B: thread-aware priority modulation
+        matching_thread = _find_matching_thread(topic, thread_topics)
+        if matching_thread:
+            if matching_thread.depth >= _DEEP_THREAD_THRESHOLD:
+                # Deep thread — deprioritize to prevent fixation
+                base_priority *= 0.5
+            else:
+                # Active thread but not deep — boost (thread validates interest)
+                base_priority = min(0.95, base_priority + 0.15)
+
+        # Phase 3B: salience-aware priority
+        from memory.storage.base import safe_stem
+        sal_key = f"sage/curiosity/{safe_stem(topic)}"
+        salience = salience_map.get(sal_key, 1.0)
+        # Scale priority by salience (low-salience = old/fading curiosity)
+        final_priority = base_priority * max(0.3, salience)
+
+        triggers.append(SearchTrigger(
+            topic=topic,
+            query=query,
+            reason=reason or f"Unresolved curiosity about: {topic}",
+            signal="pending_curiosity" if not matching_thread else "thread_curiosity",
+            priority=round(final_priority, 3),
+        ))
 
     # ── Signal 2: Open questions in sage reflections ──────────────────
-    # Sage's recent reflections contain explicit questions or uncertainty markers.
     question_trigger = _detect_open_questions(sage_reflections)
     if question_trigger:
         triggers.append(question_trigger)
 
     # ── Signal 3: Repeated topic mentions in conversation ─────────────
-    # The user keeps bringing up a topic — Sage becomes curious about it.
     repeat_trigger = _detect_repeated_topics(recent_digest)
     if repeat_trigger:
         triggers.append(repeat_trigger)
 
     # ── Signal 4: Long idle period ────────────────────────────────────
-    # Sage has been quiet for a while. Old curiosities can resurface.
-    if idle_seconds > 7200 and pending_curiosities:  # 2+ hours idle
-        triggers.append(SearchTrigger(
-            topic="idle_reflection",
-            query=_extract_first_query(pending_curiosities[0]),
-            reason="Long quiet period — revisiting lingering curiosity.",
-            signal="idle_curiosity",
-            priority=0.4,
-        ))
+    if idle_seconds > 7200 and pending_curiosities:
+        first_query = _extract_first_query(pending_curiosities[0])
+        if first_query:
+            triggers.append(SearchTrigger(
+                topic="idle_reflection",
+                query=first_query,
+                reason="Long quiet period — revisiting lingering curiosity.",
+                signal="idle_curiosity",
+                priority=0.4,
+            ))
 
     # Sort by priority descending
     triggers.sort(key=lambda t: t.priority, reverse=True)
@@ -101,9 +146,20 @@ async def evaluate_triggers(
         log("search", "triggers_evaluated",
             count=len(triggers),
             top_signal=triggers[0].signal,
-            top_topic=triggers[0].topic)
+            top_topic=triggers[0].topic,
+            top_priority=triggers[0].priority)
 
     return triggers
+
+
+def _find_matching_thread(topic: str, thread_topics: dict) -> Optional[object]:
+    """Find a thread whose topic matches the curiosity topic."""
+    topic_norm = " ".join(topic.lower().strip().split())
+    for thread_topic, thread in thread_topics.items():
+        thread_norm = " ".join(thread_topic.lower().strip().split())
+        if topic_norm in thread_norm or thread_norm in topic_norm:
+            return thread
+    return None
 
 
 def _extract_first_query(text: str) -> str:
@@ -115,7 +171,9 @@ def _extract_first_query(text: str) -> str:
 def _detect_open_questions(reflections: list[str]) -> Optional[SearchTrigger]:
     """
     Look for question markers or uncertainty language in Sage's reflections.
-    Returns a trigger if found, None otherwise.
+
+    Phase 3B: Improved extraction — finds the clause containing the marker
+    rather than taking a raw character slice.
     """
     question_markers = [
         "i wonder", "i'm not sure", "i don't know", "what is",
@@ -126,29 +184,48 @@ def _detect_open_questions(reflections: list[str]) -> Optional[SearchTrigger]:
 
     for marker in question_markers:
         if marker in combined:
-            # Extract a short topic context near the marker
             idx = combined.find(marker)
-            snippet = combined[idx:idx + 80].strip()
+            # Extract the clause: from marker to next sentence boundary
+            clause = _extract_clause(combined, idx)
+            if len(clause) < 8:
+                continue
             return SearchTrigger(
                 topic="open_question",
-                query=snippet[:60],
-                reason=f"An open question emerged from recent reflection: \"{snippet[:60]}...\"",
+                query=clause[:80],
+                reason=f"An open question emerged from recent reflection: \"{clause[:60]}\"",
                 signal="reflection_question",
-                priority=0.6,
+                priority=0.55,
             )
     return None
+
+
+def _extract_clause(text: str, start_idx: int) -> str:
+    """Extract a meaningful clause from start_idx to next sentence boundary."""
+    # Find end of clause (period, question mark, newline, or 100 chars)
+    end_idx = start_idx
+    max_end = min(len(text), start_idx + 100)
+    for i in range(start_idx, max_end):
+        if text[i] in ".?\n":
+            end_idx = i
+            break
+    else:
+        end_idx = max_end
+
+    clause = text[start_idx:end_idx].strip()
+    # Clean up
+    clause = clause.strip(".,;:- ")
+    return clause
 
 
 def _detect_repeated_topics(digest: str) -> Optional[SearchTrigger]:
     """
     Detect if a topic has appeared multiple times in the recent digest.
-    Returns a trigger for the most-repeated meaningful term, or None.
+
+    Phase 3B: Slightly raised threshold (4 instead of 3) to reduce noise.
     """
     if not digest:
         return None
 
-    # Simple word-frequency approach for repeated substantive topics.
-    # Exclude common stopwords and conversational filler.
     stopwords = {
         "the", "a", "an", "is", "it", "i", "you", "we", "he", "she",
         "they", "that", "this", "and", "or", "but", "in", "on", "at",
@@ -157,6 +234,8 @@ def _detect_repeated_topics(digest: str) -> Optional[SearchTrigger]:
         "should", "may", "might", "user", "assistant", "sage",
         "aku", "kamu", "dia", "itu", "ini", "dan", "atau", "tapi",
         "yang", "di", "ke", "dari", "dengan", "ada", "tidak",
+        "about", "think", "really", "still", "thing", "things",
+        "something", "someone", "every", "their", "there", "going",
     }
 
     words = [
@@ -169,8 +248,8 @@ def _detect_repeated_topics(digest: str) -> Optional[SearchTrigger]:
         if w not in stopwords:
             word_counts[w] = word_counts.get(w, 0) + 1
 
-    # A topic worth searching appears 3+ times in recent digest
-    repeated = [(w, c) for w, c in word_counts.items() if c >= 3]
+    # Phase 3B: raised threshold to 4 (reduces noise triggers)
+    repeated = [(w, c) for w, c in word_counts.items() if c >= 4]
     if not repeated:
         return None
 
@@ -181,5 +260,5 @@ def _detect_repeated_topics(digest: str) -> Optional[SearchTrigger]:
         query=top_word,
         reason=f"The topic \"{top_word}\" has appeared {count} times in recent conversation.",
         signal="repeated_mention",
-        priority=0.5,
+        priority=0.45,
     )

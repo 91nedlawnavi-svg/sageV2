@@ -31,6 +31,7 @@ import httpx
 from backend.orchestration.event_bus import publish, subscribe
 from backend.orchestration.session import ConversationSession
 from cognition.reflection.pipeline import run_reflection_cycle
+from cognition.salience.tracker import decay_all
 from cognition.synthesis.state_synthesis import synthesize_state_from_cycle
 from config.settings import DAEMON_COOLDOWN_SECONDS
 from utils.logger import log
@@ -123,16 +124,28 @@ class ReflectionDaemon:
         Phase 3A: The cycle runs under _cycle_lock to prevent overlaps.
         synthesize_state_from_cycle() is called after a successful cycle
         to persist the continuity snapshot.
+
+        Phase 3B: Salience decay is applied at the START of every cycle.
+        The cycle_id (timestamp) prevents double-decay and is passed through
+        the pipeline for boost tracking.
         """
         async with self._cycle_lock:
             self._last_run_ts = time.time()
+            cycle_id = str(int(self._last_run_ts))
+
+            # Phase 3B: decay all salience scores once per cycle
+            try:
+                decay_all(cycle_id)
+            except Exception as de:
+                log("daemon", "salience_decay_error", error=str(de))
 
             digest       = self._session.get_digest()
             idle_seconds = payload.get("idle_seconds", 0.0)
 
             log("daemon", "cycle_start",
                 session_turns=self._session.session_turns,
-                digest_len=len(digest))
+                digest_len=len(digest),
+                cycle_id=cycle_id)
 
             await publish("daemon_triggered", {
                 "digest":        digest,
@@ -144,6 +157,7 @@ class ReflectionDaemon:
                     conversation_digest=digest,
                     client=self._client,
                     idle_seconds=idle_seconds,
+                    cycle_id=cycle_id,
                 )
 
                 # Phase 3A: persist continuity snapshot after successful cycle

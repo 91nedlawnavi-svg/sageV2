@@ -313,8 +313,14 @@ Rules:
 
 Output only the reflection. No headers, no preamble."""
 
-def sage_reflection_prompt(recent_user_context: str, recent_interactions: str) -> str:
+def sage_reflection_prompt(
+    recent_user_context: str,
+    recent_interactions: str,
+    thread_context: str = "",
+) -> str:
     parts = []
+    if thread_context:
+        parts.append(thread_context)
     if recent_interactions:
         parts.append(f"RECENT INTERACTIONS:\n{recent_interactions}")
     if recent_user_context:

@@ -171,9 +171,11 @@ async def _run_chat(jid: str, user_input: str, search_context: str) -> None:
 
     # Memory retrieval runs in parallel after directive load.
     # Directive is independent of memory — it must never be derived from it.
+    # Phase 3B: cycle_id="" means chat-time retrieval does NOT boost salience.
+    # Only daemon-cycle retrieval modifies cognitive state.
     user_mem, sage_mem = await asyncio.gather(
         retrieve_user_memories(user_input, _client),
-        retrieve_sage_memories(user_input, _client),
+        retrieve_sage_memories(user_input, _client, cycle_id=""),
     )
 
     history      = await load_history(HISTORY_FILE)
