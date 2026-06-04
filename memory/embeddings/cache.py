@@ -19,7 +19,13 @@ from typing import Optional
 
 import httpx
 
-from config.settings import EMBED_API_URL, EMBED_CACHE_MAX, EMBED_PREFIX, EMBEDDINGS_DIR
+from config.settings import (
+    EMBED_API_URL,
+    EMBED_CACHE_MAX,
+    EMBEDDINGS_DIR,
+    EMBED_MODEL,
+    NVIDIA_API_KEY,
+)
 
 
 # ── In-memory LRU cache ───────────────────────────────────────────────
@@ -92,9 +98,15 @@ async def get_embedding(
         return hit
 
     try:
+        headers = {
+            "Authorization": f"Bearer {NVIDIA_API_KEY}",
+            "Content-Type": "application/json",
+        }
+        
         resp = await client.post(
             EMBED_API_URL,
-            json={"input": EMBED_PREFIX + text},
+            json={"model": EMBED_MODEL, "input": text, "input_type": "query"},
+            headers=headers,
             timeout=30.0,
         )
         resp.raise_for_status()

@@ -28,6 +28,7 @@ from typing import Optional
 
 import httpx
 
+from backend.monitoring.metrics import AdminMetrics
 from backend.orchestration.event_bus import publish, subscribe
 from backend.orchestration.session import ConversationSession
 from cognition.reflection.pipeline import run_reflection_cycle
@@ -55,9 +56,11 @@ class ReflectionDaemon:
         self,
         session: ConversationSession,
         client: httpx.AsyncClient,
+        metrics: AdminMetrics | None = None,
     ):
         self._session            = session
         self._client             = client
+        self._metrics            = metrics
         self._last_run_ts: float = 0.0
         self._running: bool      = False
         self._task: Optional[asyncio.Task] = None
@@ -182,8 +185,31 @@ class ReflectionDaemon:
                     duration=result.duration_seconds,
                     search_ran=result.search_ran)
 
+                # Admin metrics: record successful cycle
+                if self._metrics:
+                    self._metrics.record_daemon_cycle({
+                        "duration": result.duration_seconds,
+                        "search_ran": result.search_ran,
+                        "episode_written": result.episode_written,
+                        "themes": len(result.emotional_themes),
+                        "sage_reflection": result.sage_reflection,
+                        "curiosities": result.curiosities_found,
+                        "error": False,
+                    })
+
             except Exception as e:
                 log("daemon", "cycle_error", error=str(e))
+                if self._metrics:
+                    # Don't call record_error here — the logger hook handles it
+                    self._metrics.record_daemon_cycle({
+                        "duration": round(time.time() - self._last_run_ts, 1),
+                        "search_ran": False,
+                        "episode_written": False,
+                        "themes": 0,
+                        "sage_reflection": False,
+                        "curiosities": 0,
+                        "error": True,
+                    })
 
     # ── Helpers ───────────────────────────────────────────────────────
 

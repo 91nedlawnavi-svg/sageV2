@@ -61,22 +61,14 @@ CHAT_MAX_TOKENS  = 2048
 CHAT_TOP_P       = 0.9
 
 # Reflection / synthesis model (non-streaming, background)
-REFLECTION_MODEL       = os.environ.get("SAGE_REFLECTION_MODEL", "mistralai/mistral-small-4-119b-2603")
+REFLECTION_MODEL       = os.environ.get("SAGE_REFLECTION_MODEL", "meta/llama-3.3-70b-instruct")
 REFLECTION_TEMPERATURE = 0.7
 REFLECTION_MAX_TOKENS  = 220
 
 
-# ── Local inference endpoints ─────────────────────────────────────────
-
-# Local memory model (Qwen 3B via llama.cpp on 8081)
-MEM_API_URL   = "http://localhost:8081/v1/chat/completions"
-MEM_TEMPERATURE = 0.1
-MEM_MAX_TOKENS  = 512
-MEM_TOP_P       = 0.9
-
-# Local embedding model (BGE-M3 via llama.cpp on 8082)
-EMBED_API_URL   = "http://localhost:8082/v1/embeddings"
-EMBED_PREFIX    = "Represent this sentence for searching relevant passages: "
+# ── NVIDIA NIM embedding model
+EMBED_API_URL   = "https://integrate.api.nvidia.com/v1/embeddings"
+EMBED_MODEL     = "nvidia/nv-embedqa-e5-v5"
 EMBED_CACHE_MAX = 512
 
 

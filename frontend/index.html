@@ -115,6 +115,25 @@
     border-radius: 1px;
   }
 
+  #clear-chat-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    cursor: pointer;
+    height: 34px;
+    padding: 0 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.15s;
+    margin-right: 8px;
+  }
+  #clear-chat-btn:hover {
+    border-color: var(--border2);
+    background: var(--bg3);
+    color: var(--soft);
+  }
+
   /* ── Drawer ── */
   #drawer {
     position: fixed;
@@ -291,6 +310,153 @@
   .status-val { color: var(--soft); }
   .status-ok  { color: #3d8b3d; }
   .status-warn { color: #b08030; }
+  .status-err  { color: #b04545; }
+
+  /* ── Admin tab ── */
+  .health-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    border-radius: 5px;
+    font-size: 11px;
+    margin-bottom: 4px;
+  }
+  .health-card.ok { background: #1a2e1a; color: #3d8b3d; }
+  .health-card.warn { background: #2e281a; color: #b08030; }
+  .health-card.err { background: #2e1a1a; color: #b04545; }
+  .health-name { font-weight: 500; }
+  .health-meta { font-size: 10px; opacity: 0.7; }
+
+  .metric-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .metric-cell {
+    padding: 8px;
+    border-radius: 5px;
+    background: var(--bg3);
+    text-align: center;
+  }
+  .metric-val {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .metric-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .cycle-table {
+    width: 100%;
+    font-size: 10px;
+    border-collapse: collapse;
+    margin-bottom: 10px;
+  }
+  .cycle-table th {
+    text-align: left;
+    padding: 4px 6px;
+    color: var(--muted);
+    font-weight: 500;
+    border-bottom: 1px solid var(--border);
+  }
+  .cycle-table td {
+    padding: 3px 6px;
+    color: var(--soft);
+    border-bottom: 1px solid var(--border);
+  }
+  .cycle-table .cycle-err { color: #b04545; }
+
+  .error-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    margin-bottom: 2px;
+    font-size: 10px;
+  }
+  .error-name { flex: 1; color: var(--muted); }
+  .error-count { color: #b04545; font-weight: 600; }
+  .error-bar-inner {
+    height: 4px;
+    border-radius: 2px;
+    background: #3d1a1a;
+    flex: 0 0 80px;
+    overflow: hidden;
+  }
+  .error-bar-fill {
+    height: 100%;
+    background: #b04545;
+    border-radius: 2px;
+  }
+
+  #admin-log-viewer {
+    width: 100%;
+    max-height: 300px;
+    overflow-y: auto;
+    font-family: var(--mono);
+    font-size: 10px;
+    line-height: 1.5;
+    background: var(--bg2);
+    border-radius: 5px;
+    padding: 8px;
+    color: var(--muted);
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  #admin-log-viewer::-webkit-scrollbar { width: 3px; }
+  #admin-log-viewer::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+  .log-subsystem-daemon { color: #5b7baa; }
+  .log-subsystem-cognition { color: #7b886b; }
+  .log-subsystem-search { color: #6baa5b; }
+  .log-event-error { color: #b04545; font-weight: 600; }
+  .log-event-warn { color: #b08030; }
+
+  .log-controls {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 6px;
+    align-items: center;
+  }
+  .btn-log {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--soft);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    cursor: pointer;
+    font-family: var(--sans);
+  }
+  .btn-log:hover { background: var(--bg4); color: var(--text); }
+  .btn-log.active { background: var(--accent-dim); border-color: var(--accent); color: var(--text); }
+
+  .admin-tab { position: relative; }
+  .admin-badge {
+    position: absolute;
+    top: 4px; right: 4px;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: transparent;
+  }
+  .admin-badge.warn { background: #b08030; }
+  .admin-badge.err  { background: #b04545; }
+
+  .admin-warn-banner {
+    padding: 6px 10px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    font-size: 10px;
+    background: #2e281a;
+    color: #b08030;
+  }
+  .admin-warn-banner.err { background: #2e1a1a; color: #b04545; }
 
   /* ── Messages ── */
   #messages {
@@ -650,9 +816,11 @@
       <div id="header-sep"></div>
       <span id="header-sub">local · llama.cpp</span>
     </div>
-    <button id="menu-btn" aria-label="Menu" onclick="toggleDrawer()">
-      <span></span><span></span><span></span>
-    </button>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <button id="menu-btn" aria-label="Menu" onclick="toggleDrawer()">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
   </header>
 
   <div id="drawer-overlay" onclick="closeDrawer()"></div>
@@ -660,14 +828,17 @@
   <div id="drawer">
     <div id="drawer-header">
       <span id="drawer-header-title">System Files</span>
-      <button id="drawer-close" onclick="closeDrawer()">✕</button>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <button id="clear-chat-btn" onclick="clearChat()" title="Archive current chat and start fresh">Clear Chat</button>
+        <button id="drawer-close" onclick="closeDrawer()">✕</button>
+      </div>
     </div>
     <div id="drawer-tabs">
       <button class="drawer-tab active" data-tab="directive" onclick="switchTab('directive')">Directive</button>
       <button class="drawer-tab" data-tab="library" onclick="switchTab('library')">Library</button>
       <button class="drawer-tab" data-tab="memory" onclick="switchTab('memory')">Memory</button>
       <button class="drawer-tab" data-tab="inner" onclick="switchTab('inner')">Inner</button>
-      <button class="drawer-tab" data-tab="status" onclick="switchTab('status')">Status</button>
+      <button class="drawer-tab" data-tab="admin" onclick="switchTab('admin')">Admin</button>
     </div>
     <div id="drawer-content">Loading…</div>
   </div>
@@ -1136,6 +1307,33 @@ document.getElementById('user-input').addEventListener('keydown', e => {
   }
 });
 
+// ── Clear Chat ─────────────────────────────────────────────────────
+async function clearChat() {
+  if (!confirm('Archive current chat and start fresh?\n\nMemory is NOT affected — only the visible chat history will be cleared.')) {
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/history/archive', { method: 'POST' });
+    const data = await res.json();
+
+    if (data.ok) {
+      // Clear UI
+      const msgs = document.getElementById('messages');
+      msgs.innerHTML = '<div id="empty"><div id="empty-glyph">◇</div><div id="empty-title">No messages yet</div><div id="empty-sub">Start a conversation below</div></div>';
+
+      // Show confirmation
+      const archived = data.archived_to ? ` (archived ${data.message_count} messages to ${data.archived_to})` : '';
+      console.log(`Chat cleared${archived}`);
+    } else {
+      alert('Failed to clear chat');
+    }
+  } catch (err) {
+    console.error('Clear chat error:', err);
+    alert('Error clearing chat: ' + err.message);
+  }
+}
+
 // ── Drawer (V1 structure) ──────────────────────────────────────────
 function toggleDrawer() {
   const d = document.getElementById('drawer');
@@ -1156,6 +1354,13 @@ function closeDrawer() {
 
 function switchTab(tab) {
   currentTab = tab;
+  // Clean up admin poll timers and mark tab inactive
+  if (tab !== 'admin') {
+    _adminTabActive = false;
+    if (_adminPollTimer) { clearInterval(_adminPollTimer); _adminPollTimer = null; }
+    if (_logPollTimer) { clearInterval(_logPollTimer); _logPollTimer = null; }
+    _adminEl = null;
+  }
   document.querySelectorAll('.drawer-tab').forEach(t => {
     t.classList.toggle('active', t.dataset.tab === tab);
   });
@@ -1180,10 +1385,10 @@ async function loadTab(tab) {
     el.style.whiteSpace = 'normal';
     el.innerHTML = 'Loading…';
     await loadInnerTab(el);
-  } else if (tab === 'status') {
+  } else if (tab === 'admin') {
     el.style.whiteSpace = 'normal';
     el.innerHTML = 'Loading…';
-    await loadStatusTab(el);
+    await loadAdminTab(el);
   }
 }
 
@@ -1500,46 +1705,296 @@ async function loadInnerTab(el) {
   }
 }
 
-// ── Status tab — V2 API (/api/status) ─────────────────────────────
-async function loadStatusTab(el) {
-  el.innerHTML = '';
-  const label = document.createElement('div');
-  label.className = 'drawer-section-label';
-  label.textContent = 'System';
-  el.appendChild(label);
+// ── Admin tab ──────────────────────────────────────────────────────
+let _adminPollTimer = null;
+let _logPollTimer = null;
+let _logPollPaused = false;
+let _logFingerprint = null;
+let _adminEl = null;
+let _adminTabActive = false;
+
+async function loadAdminTab(el) {
+  _adminEl = el;
+  _adminTabActive = true;
+  await updateAdminMetrics(el);
+  await loadAdminLogs(el);
+
+  // Start poll timers (kill old ones first)
+  if (_adminPollTimer) clearInterval(_adminPollTimer);
+  if (_logPollTimer) clearInterval(_logPollTimer);
+  _adminPollTimer = setInterval(() => {
+    if (_adminTabActive) updateAdminMetrics(_adminEl);
+  }, 15000);
+  _logPollTimer = setInterval(() => {
+    if (_adminTabActive && !_logPollPaused) loadAdminLogs(_adminEl);
+  }, 3000);
+}
+
+async function updateAdminMetrics(el) {
+  if (!el) el = _adminEl;
+  if (!el) return;
 
   try {
-    const r = await fetch('/api/status');
-    const d = await r.json();
-    const budget = d.search_budget || {};
+    const [hRes, mRes, uRes, eRes, sRes, bRes] = await Promise.all([
+      fetch('/api/admin/health').then(r => r.json()).catch(() => null),
+      fetch('/api/admin/metrics').then(r => r.json()).catch(() => null),
+      fetch('/api/admin/uptime').then(r => r.json()).catch(() => null),
+      fetch('/api/admin/errors').then(r => r.json()).catch(() => null),
+      fetch('/api/status').then(r => r.json()).catch(() => null),
+      fetch('/api/search/budget').then(r => r.json()).catch(() => null),
+    ]);
 
-    const rows = [
-      ['server',         'ok',                          'ok'],
-      ['session turns',  d.session_turns,               ''],
-      ['history turns',  d.history_turns,               ''],
-      ['daemon',         d.daemon_running ? 'running' : 'stopped',
-                         d.daemon_running ? 'ok' : 'warn'],
-      ['memory domains', (d.memory_domains||[]).join(', '), ''],
-      ['search today',   `${budget.count||0} / ${budget.max||10}`, ''],
-      ['search budget',  `${budget.remaining||0} remaining`,
-                         (budget.remaining > 0) ? 'ok' : 'warn'],
-    ];
+    el.innerHTML = '';
 
-    rows.forEach(([key, val, cls]) => {
-      const row = document.createElement('div');
-      row.className = 'status-row';
-      row.innerHTML = `<span class="status-key">${escHtml(key)}</span><span class="status-val ${cls ? 'status-'+cls : ''}">${escHtml(String(val||''))}</span>`;
-      el.appendChild(row);
-    });
-  } catch(e) {
-    el.innerHTML += '<div style="color:var(--muted);font-size:11px;">Unavailable.</div>';
+    // Warning banner
+    if (uRes) {
+      const daemonLast = mRes ? mRes.daemon_last_run : null;
+      if (daemonLast) {
+        const now = Date.now() / 1000;
+        if (now - daemonLast > 1800) {
+          const banner = document.createElement('div');
+          banner.className = 'admin-warn-banner';
+          banner.textContent = '⚠ Daemon last ran ' + formatUptime(now - daemonLast) + ' ago.';
+          el.appendChild(banner);
+        }
+      }
+    }
+
+    // Section: Health
+    const hl = document.createElement('div');
+    hl.className = 'drawer-section-label';
+    hl.textContent = 'Health';
+    el.appendChild(hl);
+
+    if (hRes && hRes.checks) {
+      hRes.checks.forEach(c => {
+        const card = document.createElement('div');
+        card.className = 'health-card ' + (c.ok ? 'ok' : (c.error && c.name !== 'Filesystem' ? 'err' : 'warn'));
+        card.innerHTML = `<span class="health-name">${escHtml(c.name)}</span><span class="health-meta">${c.latency_ms ? c.latency_ms + 'ms' : ''}</span>`;
+        el.appendChild(card);
+      });
+    }
+
+    // Section: Metrics
+    const ml = document.createElement('div');
+    ml.className = 'drawer-section-label';
+    ml.textContent = 'Metrics';
+    ml.style.marginTop = '12px';
+    el.appendChild(ml);
+
+    if (mRes) {
+      const grid = document.createElement('div');
+      grid.className = 'metric-grid';
+      const totalErrs = (eRes && eRes.by_subsystem)
+        ? Object.values(eRes.by_subsystem).reduce((a, b) => a + b, 0)
+        : mRes.total_errors || 0;
+      const cells = [
+        ['Uptime', formatUptime(mRes.uptime_seconds || 0)],
+        ['Requests', mRes.total_requests],
+        ['Avg Latency', (mRes.avg_api_latency_ms || 0).toFixed(0) + 'ms'],
+        ['Daemon Cycles', mRes.daemon_cycles_run],
+        ['Sessions', (sRes && sRes.session_turns) ? sRes.session_turns : '--'],
+        ['Total Errors', totalErrs],
+        ['Search Budget', (bRes && bRes.remaining !== undefined) ? `${bRes.remaining} / ${bRes.max}` : '--'],
+        ['Disk Free', (hRes && hRes.disk) ? hRes.disk.free_gb + ' GB' : '--'],
+      ];
+      cells.forEach(([label, val]) => {
+        const cell = document.createElement('div');
+        cell.className = 'metric-cell';
+        cell.innerHTML = `<div class="metric-val">${val}</div><div class="metric-label">${label}</div>`;
+        grid.appendChild(cell);
+      });
+      el.appendChild(grid);
+    }
+
+    // Section: Daemon history
+    if (mRes && mRes.daemon_cycles_run > 0) {
+      const dl = document.createElement('div');
+      dl.className = 'drawer-section-label';
+      dl.textContent = 'Daemon Cycles';
+      el.appendChild(dl);
+
+      const resp = await fetch('/api/admin/daemon/history');
+      const hist = await resp.json();
+      const cycles = (hist.cycles || []).slice(-8).reverse();
+
+      const table = document.createElement('table');
+      table.className = 'cycle-table';
+      table.innerHTML = '<thead><tr><th>Time</th><th>Dur</th><th>Search</th><th>Ep</th><th>Themes</th><th>Refl</th></tr></thead>';
+      const tbody = document.createElement('tbody');
+      cycles.forEach(c => {
+        const row = document.createElement('tr');
+        if (c.error) row.className = 'cycle-err';
+        const ts = new Date(c.ts * 1000).toISOString().slice(11, 19);
+        row.innerHTML = `<td>${ts}</td><td>${(c.duration||0).toFixed(1)}s</td><td>${c.search_ran ? '✓' : '—'}</td><td>${c.episode_written ? '✓' : '—'}</td><td>${c.themes||0}</td><td>${c.sage_reflection ? '✓' : '—'}</td>`;
+        tbody.appendChild(row);
+      });
+      table.appendChild(tbody);
+      el.appendChild(table);
+    }
+
+    // Section: Errors
+    if (eRes && eRes.by_subsystem) {
+      const elbl = document.createElement('div');
+      elbl.className = 'drawer-section-label';
+      elbl.textContent = 'Errors';
+      el.appendChild(elbl);
+
+      const maxErr = Math.max(1, ...Object.values(eRes.by_subsystem));
+      const entries = Object.entries(eRes.by_subsystem).sort((a, b) => b[1] - a[1]);
+      entries.forEach(([subsys, count]) => {
+        if (count === 0) return;
+        const bar = document.createElement('div');
+        bar.className = 'error-bar';
+        bar.innerHTML = `<span class="error-name">${escHtml(subsys)}</span><span class="error-count">${count}</span><div class="error-bar-inner"><div class="error-bar-fill" style="width:${(count/maxErr*100).toFixed(0)}%"></div></div>`;
+        el.appendChild(bar);
+      });
+      if (entries.every(([, c]) => c === 0)) {
+        const p = document.createElement('div');
+        p.style.cssText = 'color:var(--muted);font-size:10px;padding:4px 0;';
+        p.textContent = 'No errors recorded.';
+        el.appendChild(p);
+      }
+    }
+
+    // Update badge
+    const totalErrs = (eRes && eRes.by_subsystem)
+      ? Object.values(eRes.by_subsystem).reduce((a, b) => a + b, 0)
+      : 0;
+    updateAdminBadge(totalErrs);
+
+  } catch (e) {
+    el.textContent = 'Failed to load admin metrics.';
   }
+}
+
+async function loadAdminLogs(el) {
+  if (!el) el = _adminEl;
+  if (!el) return;
+
+  // Don't recreate log viewer if it exists
+  let viewer = document.getElementById('admin-log-viewer');
+  let controls = document.getElementById('log-controls');
+  if (!viewer) {
+    const lbl = document.createElement('div');
+    lbl.className = 'drawer-section-label';
+    lbl.textContent = 'Live Logs';
+    lbl.style.marginTop = '12px';
+    el.appendChild(lbl);
+
+    controls = document.createElement('div');
+    controls.id = 'log-controls';
+    controls.className = 'log-controls';
+
+    const pauseBtn = document.createElement('button');
+    pauseBtn.className = 'btn-log';
+    pauseBtn.textContent = 'Pause';
+    pauseBtn.onclick = toggleLogPoll;
+
+    const linesSel = document.createElement('select');
+    linesSel.className = 'btn-log';
+    [25, 50, 100, 200].forEach(n => {
+      const o = document.createElement('option'); o.value = n; o.textContent = n + ' lines'; if (n === 100) o.selected = true;
+      linesSel.appendChild(o);
+    });
+    linesSel.onchange = () => _logFingerprint = null;
+
+    const subFilter = document.createElement('select');
+    subFilter.className = 'btn-log';
+    subFilter.id = 'log-filter';
+    [
+      ['all', 'All'],
+      ['daemon', 'Daemon'], ['cognition', 'Cognition'], ['memory', 'Memory'],
+      ['inference', 'Inference'], ['search', 'Search'], ['api', 'API'],
+      ['bootstrap', 'Bootstrap'], ['event_bus', 'Event Bus']
+    ].forEach(([val, label]) => {
+      const o = document.createElement('option'); o.value = val; o.textContent = label;
+      subFilter.appendChild(o);
+    });
+    subFilter.onchange = () => _logFingerprint = null;
+
+    controls.appendChild(pauseBtn);
+    controls.appendChild(linesSel);
+    controls.appendChild(subFilter);
+    el.appendChild(controls);
+
+    viewer = document.createElement('pre');
+    viewer.id = 'admin-log-viewer';
+    el.appendChild(viewer);
+  }
+
+  const filterVal = document.getElementById('log-filter') ? document.getElementById('log-filter').value : 'all';
+  const linesVal = document.getElementById('log-controls') ? document.getElementById('log-controls').querySelector('select').value : 50;
+
+  try {
+    const resp = await fetch(`/api/admin/logs/tail?lines=${linesVal}&since=${encodeURIComponent(_logFingerprint || '')}`);
+    const data = await resp.json();
+    if (!data.lines) return;
+
+    if (data.unchanged) return;
+
+    _logFingerprint = data.fingerprint || null;
+
+    let filtered = data.lines;
+    if (filterVal !== 'all') {
+      filtered = filtered.filter(l => l.subsystem === filterVal);
+    }
+
+    const html = filtered.map(l => {
+      let css = 'log-subsystem-' + (l.subsystem || 'unknown');
+      if (l.event && l.event.includes('error')) css += ' log-event-error';
+      if (l.event && l.event.includes('warn')) css += ' log-event-warn';
+      const ts = (l.ts || '').slice(11, 19) || '--:--:--';
+      let line = ts + ' [' + l.subsystem + '/' + l.event + ']';
+      const extra = Object.entries(l).filter(([k]) => !['ts', 'subsystem', 'event'].includes(k));
+      if (extra.length) line += ' ' + extra.map(([k, v]) => k + '=' + JSON.stringify(v)).join(' ');
+      return '<span class="' + css + '">' + escHtml(line) + '</span>';
+    }).join('\n');
+
+    viewer.innerHTML = html;
+    viewer.scrollTop = viewer.scrollHeight;
+  } catch (e) {
+    viewer.textContent = 'Failed to load logs.';
+  }
+}
+
+function toggleLogPoll() {
+  _logPollPaused = !_logPollPaused;
+  const btn = document.querySelector('#log-controls .btn-log');
+  if (btn) { btn.textContent = _logPollPaused ? 'Resume' : 'Pause'; btn.classList.toggle('active', _logPollPaused); }
+}
+
+function updateAdminBadge(totalErrors) {
+  const tab = document.querySelector('.admin-tab');
+  if (!tab) return;
+  let badge = tab.querySelector('.admin-badge');
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.className = 'admin-badge';
+    tab.appendChild(badge);
+  }
+  badge.className = 'admin-badge';
+  if (totalErrors > 0) badge.classList.add('err');
 }
 
 function escHtml(s) {
   return String(s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;')
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function formatUptime(seconds) {
+  seconds = Math.round(seconds);
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 24) {
+    const d = Math.floor(h / 24);
+    return d + 'd ' + (h % 24) + 'h';
+  }
+  if (h > 0) return h + 'h ' + m + 'm';
+  if (m > 0) return m + 'm ' + s + 's';
+  return s + 's';
 }
 
 // ── Boot ───────────────────────────────────────────────────────────

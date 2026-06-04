@@ -17,7 +17,7 @@ from typing import Optional
 import httpx
 
 from memory.user.emotional import load_user_theme, write_user_emotional_theme
-from models.inference.engine import mem_complete
+from models.inference.engine import nim_complete
 from models.prompts.templates import (
     EMOTIONAL_EXTRACT_SYSTEM,
     EMOTIONAL_MERGE_SYSTEM,
@@ -49,7 +49,7 @@ async def extract_and_persist_user_emotions(
 
     Returns list of theme names that were updated.
     """
-    raw = await mem_complete(
+    raw = await nim_complete(
         system=EMOTIONAL_EXTRACT_SYSTEM,
         user=emotional_extract_prompt(conversation_digest),
         client=client,
@@ -75,7 +75,7 @@ async def extract_and_persist_user_emotions(
         existing = await load_user_theme(theme_name)
 
         if existing:
-            merged = await mem_complete(
+            merged = await nim_complete(
                 system=EMOTIONAL_MERGE_SYSTEM,
                 user=emotional_merge_prompt(existing, interpretation),
                 client=client,

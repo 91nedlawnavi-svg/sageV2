@@ -2,3 +2,7 @@
 __pycache__/
 *.pyc
 sage_data/
+.env
+.commandcode/
+.claude/
+.python-version

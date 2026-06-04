@@ -3,8 +3,7 @@ models/inference/engine.py — LLM Inference Wrappers
 
 Two inference paths:
   chat_stream()  → streaming tokens from NVIDIA NIM (user-facing)
-  mem_complete() → single completion from local memory model (background)
-  nim_complete() → single non-streaming NIM call (for reflection/search synthesis)
+  nim_complete() → single non-streaming NIM call (for reflection, extraction, and synthesis)
 
 Preserved from V1's models/inference.py — no behavior change.
 Split into engine.py to allow routing.py to sit alongside without circular imports.
@@ -22,10 +21,6 @@ from config.settings import (
     CHAT_MAX_TOKENS,
     CHAT_TEMPERATURE,
     CHAT_TOP_P,
-    MEM_API_URL,
-    MEM_MAX_TOKENS,
-    MEM_TEMPERATURE,
-    MEM_TOP_P,
     REFLECTION_MODEL,
     REFLECTION_TEMPERATURE,
     REFLECTION_MAX_TOKENS,
@@ -94,38 +89,6 @@ async def chat_stream(
         yield f"\n\n⚠️ NVIDIA API error {e.response.status_code}: {body}"
     except Exception as e:
         yield f"\n\n⚠️ Chat error: {e}"
-
-
-async def mem_complete(
-    system: str,
-    user: str,
-    client: httpx.AsyncClient,
-    max_tokens: int = MEM_MAX_TOKENS,
-) -> Optional[str]:
-    """
-    Single non-streaming completion from the local Qwen memory model.
-    Used for: episodic extraction, emotional analysis, library extraction.
-    Returns response text, or None on failure.
-    """
-    try:
-        resp = await client.post(
-            MEM_API_URL,
-            json={
-                "messages": [
-                    {"role": "system", "content": system},
-                    {"role": "user",   "content": user},
-                ],
-                "temperature": MEM_TEMPERATURE,
-                "max_tokens": max_tokens,
-                "top_p": MEM_TOP_P,
-            },
-            timeout=90.0,
-        )
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"].strip()
-    except Exception as e:
-        log("inference", "mem_complete_error", error=str(e))
-        return None
 
 
 async def nim_complete(

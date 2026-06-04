@@ -23,7 +23,7 @@ from config.settings import USER_REFLECTIONS_DIR
 from memory.user.episodic import load_recent_user_episodes, write_user_episode
 from memory.user.emotional import retrieve_relevant_user_themes
 from memory.storage.base import ensure_dirs, ts_filename, write_memory_entry
-from models.inference.engine import mem_complete, nim_complete
+from models.inference.engine import nim_complete
 from models.prompts.templates import (
     EPISODIC_SYSTEM,
     USER_REFLECTION_SYSTEM,
@@ -41,7 +41,7 @@ async def extract_user_episode(
     Generate and persist one episodic memory for the user from a conversation digest.
     Returns True if an episode was written, False if skipped.
     """
-    raw = await mem_complete(
+    raw = await nim_complete(
         system=EPISODIC_SYSTEM,
         user=episodic_prompt(conversation_digest),
         client=client,

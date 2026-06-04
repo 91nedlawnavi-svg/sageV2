@@ -2,11 +2,8 @@
 
 ## Prerequisites
 
-The same as V1:
 - Python 3.11+
-- llama.cpp serving Qwen 3B on port 8081 (memory model)
-- llama.cpp serving BGE-M3 on port 8082 (embedding model)
-- NVIDIA NIM API key for the chat and reflection models
+- NVIDIA NIM API key (used for all inference: chat, reflection, and embedding)
 
 ## Installation
 
@@ -108,29 +105,15 @@ tail -f ~/sage_data_v2/logs/sage.$(date +%Y-%m-%d).jsonl | python3 -m json.tool
 
 ---
 
-## Local Model Requirements
+## Inference Architecture (Fully NIM)
 
-### Memory model (port 8081)
-Used for: episodic extraction, emotional analysis, library extraction.
-Endpoint: `http://localhost:8081/v1/chat/completions`
-Recommended: Qwen 2.5 3B or similar small, fast model.
+Sage V2 no longer requires local `llama.cpp` servers. All cognitive workloads are routed through NVIDIA NIM, freeing up local VRAM entirely.
 
-```bash
-# Example llama.cpp invocation
-./llama-server -m qwen2.5-3b.gguf --port 8081 -c 4096
-```
+- **Live Chat**: `mistralai/mistral-large-2-instruct` (chosen for conversational nuance and reduced "assistant" drift).
+- **Reflection/Synthesis**: `mistralai/mistral-small-4-119b-2603` (high-fidelity emotional distillation).
+- **Embedding/Retrieval**: `baai/bge-m3` (multilingual, multi-vector retrieval, hosted on NIM).
 
-### Embedding model (port 8082)
-Used for: all memory retrieval scoring.
-Endpoint: `http://localhost:8082/v1/embeddings`
-Recommended: BGE-M3 (multilingual, handles Indonesian + English).
-
-```bash
-./llama-server -m bge-m3.gguf --port 8082 --embedding
-```
-
-If either local model is unreachable, Sage will log the error and
-gracefully skip that operation. The chat will still work via NIM.
+If the NIM API is unreachable, Sage will log the error and gracefully degrade (e.g., responding without memory retrieval).
 
 ---
 

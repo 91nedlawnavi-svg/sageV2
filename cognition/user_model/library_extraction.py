@@ -18,7 +18,7 @@ import httpx
 
 from config.settings import LIBRARY_CATS
 from memory.user.library import load_library_entry, write_library_entry
-from models.inference.engine import mem_complete
+from models.inference.engine import nim_complete
 from models.prompts.templates import (
     LIBRARY_EXTRACT_SYSTEM,
     LIBRARY_MERGE_SYSTEM,
@@ -51,7 +51,7 @@ async def extract_and_populate_user_library(
 
     Returns a list of written entry paths (for logging).
     """
-    raw = await mem_complete(
+    raw = await nim_complete(
         system=LIBRARY_EXTRACT_SYSTEM,
         user=library_extract_prompt(conversation_digest),
         client=client,
@@ -80,7 +80,7 @@ async def extract_and_populate_user_library(
         existing = await load_library_entry(category, name)
 
         if existing:
-            merged = await mem_complete(
+            merged = await nim_complete(
                 system=LIBRARY_MERGE_SYSTEM,
                 user=library_merge_prompt(existing, note),
                 client=client,

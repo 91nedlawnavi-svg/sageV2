@@ -25,6 +25,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 _log_dir: Path | None = None
+_error_hook: object | None = None   # callable(subsystem) for admin metrics
+
+
+def set_error_hook(hook) -> None:
+    """Set an optional hook called when an error is logged."""
+    global _error_hook
+    _error_hook = hook
 
 
 def _get_log_path() -> Path:
@@ -53,3 +60,10 @@ def log(subsystem: str, event: str, **kwargs) -> None:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except Exception as exc:
         print(f"[logger] Failed to write log: {exc}", file=sys.stderr)
+
+    # Notify admin metrics if this is an error-level event
+    if _error_hook and "error" in event:
+        try:
+            _error_hook(subsystem)
+        except Exception:
+            pass
