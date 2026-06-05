@@ -15,6 +15,7 @@ V2 additions:
 """
 
 from datetime import datetime
+import hashlib
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -73,7 +74,11 @@ def build_chat_messages(
     messages = [{"role": "system", "content": system_content}]
     messages += history
     messages.append({"role": "user", "content": user_input})
-    return messages
+
+    # PHASE 4: Prompt audit fingerprint (for transparency/continuity tracking)
+    fp = get_prompt_fingerprint(directive, system_content, "chat")
+    # Note: caller (chat.py etc.) should log this fp
+    return messages, fp
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -187,10 +192,10 @@ From the conversation below, identify any people, places, or topics worth noting
 
 Rules:
 - Output a JSON array. Each item: {"category": "people"|"places"|"topics", "name": "short name", "note": "prose paragraph"}
-- people: named individuals Elliot mentions (friends, family, teachers, etc.)
+- people: named individuals Elliot mentions (friends, family, teachers, etc.). For people, include any mentioned relationships or groups in the "note" (e.g. "Naufal is in the band with Elliot").
 - places: specific locations Elliot references (a warung, school, city, etc.)
 - topics: recurring subjects Elliot returns to (a hobby, interest, project, obsession, etc.)
-- note: 2-4 sentences of distilled prose. Third person. What this person/place/topic means to Elliot, not just that it was mentioned.
+- note: 2-4 sentences of distilled prose. Third person. What this person/place/topic means to Elliot, not just that it was mentioned. For people, note relationships/groups explicitly.
 - Only extract entities that feel meaningful — skip passing one-word references with no context.
 - name: short human-readable label (e.g. "Pet", "Warung Pojok", "Systems Thinking")
 - If nothing is worth extracting, return []
@@ -206,7 +211,7 @@ Merge the existing entry with a new observation into one updated prose paragraph
 
 Rules:
 - Write a single updated paragraph (3-6 sentences)
-- Preserve what was already known; integrate new detail naturally
+- Preserve what was already known; integrate new detail naturally. For people, preserve and merge any relationship/group mentions.
 - Do not repeat yourself
 - Third person throughout
 - Do not add headers or labels
@@ -263,7 +268,9 @@ def compose_reflection_system(directive: str) -> str:
     The directive is not modified. The return value is ephemeral —
     it exists only for the duration of one nim_complete call.
     """
-    return directive.strip() + _DIRECTIVE_SEPARATOR + SAGE_REFLECTION_SYSTEM
+    fp = get_prompt_fingerprint(directive, SAGE_REFLECTION_SYSTEM)
+    # PHASE 4: callers should log fp for audit
+    return directive.strip() + _DIRECTIVE_SEPARATOR + SAGE_REFLECTION_SYSTEM, fp
 
 
 def compose_curiosity_system(directive: str) -> str:
@@ -274,7 +281,8 @@ def compose_curiosity_system(directive: str) -> str:
     emerges from her actual character, not from a generic topic-extractor.
     The directive constrains and shapes curiosity without prescribing topics.
     """
-    return directive.strip() + _DIRECTIVE_SEPARATOR + SAGE_CURIOSITY_SYSTEM
+    fp = get_prompt_fingerprint(directive, SAGE_CURIOSITY_SYSTEM)
+    return directive.strip() + _DIRECTIVE_SEPARATOR + SAGE_CURIOSITY_SYSTEM, fp
 
 
 def compose_worldview_system(directive: str) -> str:
@@ -286,7 +294,8 @@ def compose_worldview_system(directive: str) -> str:
     Her intellectual character (alive, honest about uncertainty, connecting
     to what she already knew) comes from the directive, not the task prompt.
     """
-    return directive.strip() + _DIRECTIVE_SEPARATOR + SAGE_WORLDVIEW_SYNTHESIS_SYSTEM
+    fp = get_prompt_fingerprint(directive, SAGE_WORLDVIEW_SYNTHESIS_SYSTEM)
+    return directive.strip() + _DIRECTIVE_SEPARATOR + SAGE_WORLDVIEW_SYNTHESIS_SYSTEM, fp
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -413,6 +422,7 @@ def format_search_context(
     This is the V2 fix for V1's search contamination problem.
     Instead of pasting raw results, we inject structured context
     that tells the model what was searched, why, and who initiated it.
+    PHASE 4 #1: For Sage, reason includes budget status for flawless transparency.
     """
     return (
         "\n[WEB SEARCH CONTEXT]\n"
@@ -453,3 +463,17 @@ interpretation: 2-4 sentences, ongoing pattern, third person, about Elliot
 CRITICAL: Themes must reflect the USER's (Elliot's) emotional patterns only. Do not create themes about the assistant's personality, desires, or inner experience.
 
 Output ONLY valid JSON. No preamble."""
+
+# ══════════════════════════════════════════════════════════════════════
+# PHASE 4 UPGRADE: Prompt Transparency / Audit
+# Lightweight fingerprint for every prompt construction.
+# Allows auditing which prompt version was used for each turn/cycle.
+# ══════════════════════════════════════════════════════════════════════
+
+def get_prompt_fingerprint(directive: str = "", task_prompt: str = "", extra: str = "") -> str:
+    """
+    Returns a short stable hash of the key prompt components.
+    Used for logging and state so we can trace "what Sage was thinking with".
+    """
+    base = (directive[:200] + task_prompt[:200] + extra).encode("utf-8")
+    return hashlib.sha256(base).hexdigest()[:12]

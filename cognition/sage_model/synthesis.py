@@ -79,8 +79,10 @@ async def generate_sage_reflection(
 
     directive = get_directive()
 
+    system_prompt, prompt_fp = compose_reflection_system(directive)
+    log("prompt", "sage_reflection_fingerprint", fp=prompt_fp)
     raw = await nim_complete(
-        system=compose_reflection_system(directive),
+        system=system_prompt,
         user=sage_reflection_prompt(recent_user_context, recent_interactions, thread_context),
         client=client,
         max_tokens=200,
@@ -123,8 +125,10 @@ async def identify_sage_curiosities(
 
     directive = get_directive()
 
+    system_prompt, prompt_fp = compose_curiosity_system(directive)
+    log("prompt", "sage_curiosity_fingerprint", fp=prompt_fp)
     raw = await nim_complete(
-        system=compose_curiosity_system(directive),
+        system=system_prompt,
         user=sage_curiosity_prompt(material),
         client=client,
         max_tokens=400,
@@ -198,8 +202,10 @@ async def integrate_search_into_worldview(
     existing  = await load_worldview_entry(topic)
     directive = get_directive()
 
+    system_prompt, prompt_fp = compose_worldview_system(directive)
+    log("prompt", "sage_worldview_fingerprint", fp=prompt_fp)
     raw = await nim_complete(
-        system=compose_worldview_system(directive),
+        system=system_prompt,
         user=sage_worldview_prompt(
             topic=topic,
             search_summary=search_summary,

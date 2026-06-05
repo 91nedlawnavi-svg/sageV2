@@ -294,13 +294,19 @@ No local GPU required — all inference runs via NVIDIA NIM. SearXNG and the Fas
 
 ## Status
 
-Foundation architecture complete. Current focus areas:
+Foundation architecture complete. Phase 4 upgrades COMPLETE (systematic 3 batches with full reports + validation in sageV2_analysis/):
 
-- retrieval quality
-- autobiographical consistency
-- long-term emotional continuity
-- memory ranking heuristics
-- reflective synthesis quality
+- Batch 1 (observability): Complete (prompt audit fingerprints logged on chat/reflection/daemon; /api/threads + metrics record_thread_snapshot + admin)
+- Batch 2 (search/mind/library): Complete (search provenance with budget status in reason+context_block; bounded proactive thread hints only in Sage INNER CONTEXT; library people network parser/relations + API + drawer)
+- Batch 3 (retrieval/threads): Complete (1.15/1.1 people+relations scoring + related pass; thread lifecycle eviction + structured context with links/stats in reflection/state/API/UI; benchmark + live verif)
+
+All 7 upgrades delivered. Focus areas advanced: retrieval quality, "different mind" proactivity+continuity (threads), search flawless (no drift, visible budget), library organization (network), observability (fps, snapshots, threads). 
+
+See the companion sageV2_analysis/ (UPGRADES_TRACKER.md for the full per-batch reports + benchmark evidence, PHASE4_PLAN.md, deep dives, and the live log watcher). 
+
+**Live observation tooling**: `python scripts/watch_sage_logs.py` (while the server is running) streams the internal events — daemon cycles, thread lifecycle/engagement/cap blocks, autonomous searches (with budget status in the reason for provenance), reflections, curiosities, salience, etc. This is how you (and Sage) can see the "deeper truth" of the bounded mind in action.
+
+Benchmark confirmed 0 violations across the Phase 4 changes; autonomous searches now self-document their budget at execution time.
 
 ---
 

@@ -398,6 +398,15 @@ def advance_lifecycle() -> dict:
     summary = {"dormanted": dormanted, "resolved": resolved, "decayed": decayed}
     if dormanted or resolved:
         log("threads", "lifecycle_advanced", **summary)
+    # PHASE 4 #7: Additional cleanup - remove old resolved threads if over total cap (already in create, but periodic)
+    resolved = [t for t in threads if t.status == LIFECYCLE_RESOLVED]
+    if len(resolved) > 5:  # keep some history
+        resolved.sort(key=lambda t: t.salience)
+        to_remove = resolved[:len(resolved)-5]
+        for t in to_remove:
+            threads.remove(t)
+            log("threads", "periodic_evicted", thread_id=t.thread_id)
+        save_thread_index(threads)
     return summary
 
 
@@ -410,6 +419,7 @@ def build_thread_context_for_reflection() -> str:
 
     This gives the reflection model awareness of ongoing cognitive threads
     without allowing it to modify thread metadata directly.
+    PHASE 4 #7: More structured with linkages summary.
     """
     active = get_active_threads()
     if not active:
@@ -418,7 +428,8 @@ def build_thread_context_for_reflection() -> str:
     lines = []
     for t in active[:MAX_ACTIVE_THREADS]:
         depth_label = f"depth {t.depth}" if t.depth > 0 else "new"
-        lines.append(f"- \"{t.topic}\" ({depth_label}, salience {t.salience:.2f})")
+        links = f"refs:{len(t.linked_reflections)} curios:{len(t.linked_curiosities)} searches:{len(t.linked_searches)}"
+        lines.append(f"- \"{t.topic}\" ({depth_label}, salience {t.salience:.2f}, {links})")
 
     return "ACTIVE COGNITIVE THREADS:\n" + "\n".join(lines)
 
@@ -427,9 +438,10 @@ def build_thread_summary_for_state() -> list[str]:
     """
     Return a list of active thread topic strings for state injection.
     Used by state_synthesis to populate the state snapshot.
+    PHASE 4 #7: More structured with key stats.
     """
     active = get_active_threads()
-    return [t.topic for t in active[:MAX_ACTIVE_THREADS]]
+    return [f"{t.topic} (d{t.depth},s{t.salience:.1f})" for t in active[:MAX_ACTIVE_THREADS]]
 
 
 # ── Internals ────────────────────────────────────────────────────────

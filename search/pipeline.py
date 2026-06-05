@@ -27,6 +27,7 @@ from search.summarization.summarizer import summarize_results, build_search_cont
 from memory.storage.base import ensure_dirs, ts_filename, write_memory_entry
 from config.settings import SEARCHES_DIR
 from utils.logger import log
+from search.autonomy.budget import get_budget_status  # PHASE 4 #1
 
 
 @dataclass
@@ -85,6 +86,15 @@ async def run_search(
         result_count=len(results),
         success=bool(results),
     )
+
+    # PHASE 4 #1: For Sage autonomous, append current budget to context_block for flawless transparency
+    if initiator.lower() == "sage":
+        try:
+            budget = get_budget_status()
+            budget_note = f"\n[Autonomous search budget at time: {budget['count']}/{budget['max']} (cooldown active: {budget.get('cooldown_active', False)})]"
+            outcome.context_block += budget_note
+        except Exception:
+            pass
 
     # Step 4: Optionally persist to Sage's search log
     if persist_to_sage_memory:

@@ -275,6 +275,20 @@
   .tree-empty { color: var(--border2); font-size: 11px; padding: 4px 8px; font-family: var(--mono); }
   #tree-file-view { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
 
+  /* ── People Network in library drawer (basic organization) ── */
+  .people-net { font-size: 11px; }
+  .people-net-node {
+    display: inline-block;
+    padding: 2px 6px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    margin: 2px;
+    cursor: pointer;
+    font-size: 10px;
+    background: var(--bg2);
+  }
+  .people-net-node:hover { background: var(--bg3); }
+
   /* ── Memory entries (V2 grafted into V1 drawer style) ── */
   .memory-entry {
     font-size: 11.5px;
@@ -1494,11 +1508,21 @@ async function loadLibraryTree(el) {
     newForm.appendChild(newBtn);
     el.appendChild(newForm);
 
+    // Search filter for library tree (makes drawer more organized)
+    const searchWrap = document.createElement('div');
+    searchWrap.style.marginBottom = '6px';
+    const searchIn = document.createElement('input');
+    searchIn.placeholder = 'filter people / places / topics…';
+    searchIn.style.cssText = 'width:100%; font-size:11px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; background:var(--bg2); color:var(--text);';
+    searchWrap.appendChild(searchIn);
+    el.appendChild(searchWrap);
+
     const treeDiv = document.createElement('div');
     for (const [cat, files] of Object.entries(tree)) {
       if (!Array.isArray(files)) continue;
       const catDiv = document.createElement('div');
       catDiv.className = 'tree-cat';
+      catDiv.dataset.cat = cat;
 
       const header = document.createElement('div');
       header.className = 'tree-cat-header';
@@ -1515,6 +1539,7 @@ async function loadLibraryTree(el) {
           const btn = document.createElement('button');
           btn.className = 'tree-file';
           btn.textContent = name;
+          btn.dataset.name = name;
           btn.onclick = () => loadLibraryFile(cat, name, btn, el);
           filesDiv.appendChild(btn);
         });
@@ -1526,6 +1551,140 @@ async function loadLibraryTree(el) {
     }
 
     el.appendChild(treeDiv);
+
+    // Filter logic for search input
+    searchIn.oninput = () => {
+      const q = searchIn.value.toLowerCase().trim();
+      treeDiv.querySelectorAll('.tree-cat').forEach(catDiv => {
+        const filesDiv = catDiv.querySelector('.tree-files');
+        let hasMatch = false;
+        filesDiv.querySelectorAll('.tree-file').forEach(btn => {
+          const match = btn.textContent.toLowerCase().includes(q);
+          btn.style.display = (q === '' || match) ? '' : 'none';
+          if (match) hasMatch = true;
+        });
+        // show category if has matches or no query
+        catDiv.style.display = (q === '' || hasMatch) ? '' : 'none';
+      });
+    };
+
+    // People Network section (basic relational view for organization)
+    // Parses notes client-side for mentions of other known people; expandable
+    if (tree.people && tree.people.length > 0) {
+      const netSection = document.createElement('div');
+      netSection.style.cssText = 'margin-top:10px; padding-top:8px; border-top:1px solid var(--border2);';
+      const netHeader = document.createElement('div');
+      netHeader.style.cssText = 'font-size:11px; color:var(--muted); margin-bottom:4px; cursor:pointer; user-select:none;';
+      netHeader.innerHTML = '👥 People Network <span style="font-size:9px;">(click to expand • basic co-mentions from notes)</span>';
+      const netContent = document.createElement('div');
+      netContent.style.display = 'none';
+      netContent.style.fontSize = '11px';
+
+      // Known people for simple relation scanning (expandable later)
+      const knownPeople = tree.people;
+      const nodesDiv = document.createElement('div');
+      nodesDiv.style.cssText = 'display:flex; flex-wrap:wrap; gap:4px; margin:4px 0;';
+
+      // Fetch and scan notes for connections (async but fire-and-forget for UI)
+      (async () => {
+        const connections = {};
+        for (const p of knownPeople) {
+          try {
+            const r = await fetch(`/api/library/people/${encodeURIComponent(p)}`);
+            if (r.ok) {
+              const d = await r.json();
+              const content = (d.content || '').toLowerCase();
+              knownPeople.forEach(other => {
+                if (other !== p && content.includes(other.toLowerCase().replace(/_/g, ' '))) {
+                  if (!connections[p]) connections[p] = [];
+                  if (!connections[p].includes(other)) connections[p].push(other);
+                }
+              });
+            }
+          } catch(e) {}
+        }
+
+        knownPeople.forEach(p => {
+          const node = document.createElement('button');
+          node.textContent = p;
+          node.className = 'people-net-node';
+          node.onclick = () => loadLibraryFile('people', p, node, el);
+          nodesDiv.appendChild(node);
+        });
+
+        const connList = document.createElement('div');
+        connList.style.cssText = 'color:var(--muted); font-size:10px; margin-top:4px;';
+        if (Object.keys(connections).length > 0) {
+          let html = 'Detected connections (from notes):<br>';
+          Object.entries(connections).forEach(([p, cons]) => {
+            html += `• ${p} → ${cons.join(', ')}<br>`;
+          });
+          connList.innerHTML = html;
+        } else {
+          connList.textContent = 'No explicit connections detected in current notes yet. (Add "band with naufal" style mentions to notes for auto-links.)';
+        }
+
+        // PHASE 4 #3: Use backend network API for richer relations (fallback to client scan)
+        try {
+          const netR = await fetch('/api/people/network');
+          if (netR.ok) {
+            const netD = await netR.json();
+            const netPeople = netD.people_network || [];
+            if (netPeople.length > 0) {
+              const netList = document.createElement('div');
+              netList.style.cssText = 'margin-top:4px; font-size:10px;';
+              netPeople.forEach(p => {
+                let relText = '';
+                if (p.groups && p.groups.length) relText += `Groups: ${p.groups.join(', ')} `;
+                if (p.related && p.related.length) relText += `Related: ${p.related.join(', ')}`;
+                if (relText) {
+                  const relDiv = document.createElement('div');
+                  relDiv.textContent = `${p.name}: ${relText}`;
+                  netList.appendChild(relDiv);
+                }
+              });
+              if (netList.children.length) netContent.appendChild(netList);
+            }
+          }
+        } catch(e) {
+          // fallback to previous client scan
+        }
+
+        // Demo group detection (scan notes for common group words)
+        const groupWords = ['band', 'group', 'team', 'crew', 'classmates'];
+        let groupsFound = [];
+        // Re-scan for groups (simple)
+        for (const p of knownPeople) {
+          try {
+            const r = await fetch(`/api/library/people/${encodeURIComponent(p)}`);
+            if (r.ok) {
+              const d = await r.json();
+              const content = (d.content || '').toLowerCase();
+              groupWords.forEach(gw => {
+                if (content.includes(gw)) {
+                  if (!groupsFound.includes(gw)) groupsFound.push(gw);
+                }
+              });
+            }
+          } catch(e) {}
+        }
+        if (groupsFound.length > 0) {
+          const gDiv = document.createElement('div');
+          gDiv.style.cssText = 'margin-top:4px; color:var(--accent, #4a9); font-size:10px;';
+          gDiv.textContent = `Groups hinted: ${groupsFound.join(', ')} (e.g. "My band")`;
+          netContent.appendChild(gDiv);
+        }
+        netContent.appendChild(nodesDiv);
+        netContent.appendChild(connList);
+      })();
+
+      netHeader.onclick = () => {
+        netContent.style.display = netContent.style.display === 'none' ? 'block' : 'none';
+      };
+      netSection.appendChild(netHeader);
+      netSection.appendChild(netContent);
+      el.appendChild(netSection);
+    }
 
     const viewer = document.createElement('div');
     viewer.id = 'tree-file-view';
@@ -1697,6 +1856,19 @@ async function loadInnerTab(el) {
         const div = document.createElement('div');
         div.className = 'memory-entry sage-entry';
         div.textContent = ref;
+        el.appendChild(div);
+      });
+    }
+    // PHASE 4 #7: Show active threads for structured context
+    if (d.active_threads && d.active_threads.length > 0) {
+      const tlabel = document.createElement('div');
+      tlabel.className = 'drawer-section-label';
+      tlabel.textContent = 'Active threads (narrative mind)';
+      el.appendChild(tlabel);
+      d.active_threads.forEach(th => {
+        const div = document.createElement('div');
+        div.className = 'memory-entry sage-entry';
+        div.textContent = `${th.topic} (d${th.depth}, s${th.salience})`;
         el.appendChild(div);
       });
     }

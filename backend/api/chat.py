@@ -39,6 +39,7 @@ from memory.storage.history import (
 from models.inference.engine import chat_stream
 from models.prompts.templates import build_chat_messages
 from utils.logger import log
+from cognition.threads.store import get_active_threads  # PHASE 4 #2
 
 
 router = APIRouter()
@@ -178,11 +179,26 @@ async def _run_chat(jid: str, user_input: str, search_context: str) -> None:
         retrieve_sage_memories(user_input, _client, cycle_id=""),
     )
 
+    # PHASE 4 #2: Bounded proactive Sage mind - if high priority active thread, add gentle hint to her inner context
+    try:
+        active_threads = get_active_threads()
+        if active_threads:
+            top_thread = active_threads[0]
+            if top_thread.priority > 0.8 and top_thread.depth > 3:  # high salience + depth
+                proactive_hint = f"\n[PROACTIVE THREAD HINT - bounded per invariants: Sage has been reflecting on '{top_thread.topic}' (depth {top_thread.depth}, priority {top_thread.priority:.2f}). Consider surfacing if relevant to user input, but do not force.]"
+                if sage_mem:
+                    sage_mem += proactive_hint
+                else:
+                    sage_mem = proactive_hint
+                log("threads", "proactive_hint_added", thread=top_thread.topic, priority=round(top_thread.priority,3))
+    except Exception as e:
+        log("threads", "proactive_hint_error", error=str(e))
+
     history      = await load_history(HISTORY_FILE)
     history_msgs = history_for_prompt(history[:-1], HISTORY_TURNS)
 
     # Prompt assembly — directive sits structurally first in build_chat_messages
-    messages = build_chat_messages(
+    messages, prompt_fp = build_chat_messages(
         directive=directive,
         user_input=user_input,
         history=history_msgs,
@@ -190,6 +206,7 @@ async def _run_chat(jid: str, user_input: str, search_context: str) -> None:
         sage_memory=sage_mem,
         search_context=search_context,
     )
+    log("prompt", "chat_fingerprint", jid=jid, fp=prompt_fp)
 
     await _job_store.set_status(jid, "streaming")
 

@@ -82,9 +82,20 @@ async def retrieve_user_memories(
         candidates.append((f"user/emotional/{name}", content))
 
     # 3. Library entries (people, places, topics)
+    # PHASE 4 #3: For people, load with relations for better network-aware retrieval (ties to threads too)
+    from memory.user.library import load_people_with_relations, load_all_library_entries
     library = await load_all_library_entries()
     for label, content in library:
         candidates.append((label, content))
+    # Enhance people with relations for scoring boost if query mentions group/related
+    try:
+        people_rel = await load_people_with_relations()
+        for p in people_rel:
+            if p['groups'] or p['related']:
+                rel_content = p['content'] + " | Groups: " + ", ".join(p['groups']) + " | Related: " + ", ".join(p['related'])
+                candidates.append((f"library/people/{p['name']}_relations", rel_content))
+    except:
+        pass
 
     # 4. User-domain reflections
     reflections = await load_all_user_reflections()
@@ -102,6 +113,12 @@ async def retrieve_user_memories(
     results = await asyncio.gather(*tasks)
 
     scored = [r for r in results if r is not None and r[0] >= threshold]
+    # PHASE 4 #5: Retrieval quality - slight boost for library/people entries (ties to network) + related pass for people with groups/related
+    for i, (score, label, content) in enumerate(scored):
+        if label.startswith('library/people'):
+            scored[i] = (score * 1.15, label, content)  # boost for people
+        if 'relations' in label:
+            scored[i] = (score * 1.1, label, content)  # extra for network
     scored.sort(key=lambda x: x[0], reverse=True)
     top = scored[:top_k]
 
@@ -120,5 +137,18 @@ async def retrieve_user_memories(
     parts = []
     for score, label, content in top:
         parts.append(f"[{label}]\n{content.strip()}")
+
+    # PHASE 4 #5: Related pass - if a library/people is in top results, include its related people from network for better context
+    try:
+        from memory.user.library import load_people_with_relations
+        people_net = await load_people_with_relations()
+        # Simple: for each top person, add related if not already
+        top_names = [l.split('/')[-1].replace('_relations','') for s,l,c in top if 'library/people' in l]
+        for p in people_net:
+            if p['name'] in top_names:
+                for rel in p['related']:
+                    parts.append(f"[library/people/{rel} (related to {p['name']})]\nRelated via network to retrieved person.")
+    except Exception as e:
+        log("retrieval", "related_pass_error", error=str(e))
 
     return "\n\n".join(parts)

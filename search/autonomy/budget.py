@@ -77,6 +77,7 @@ def can_autonomous_search() -> tuple[bool, str]:
             f"Daily search limit reached ({state['count']}/{AUTONOMOUS_SEARCH_MAX_PER_DAY}). "
             f"Resets tomorrow."
         )
+        log("search", "budget_blocked", reason=reason)
         return False, reason
 
     # Check cooldown

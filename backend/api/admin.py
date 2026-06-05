@@ -159,7 +159,17 @@ async def admin_health():
 async def admin_metrics():
     if not _metrics:
         raise HTTPException(503, "Metrics not initialized")
-    return _metrics.snapshot()
+    snap = _metrics.snapshot()
+    # PHASE 4: Include current thread observability
+    try:
+        from cognition.threads.store import get_active_threads, load_thread_index
+        snap["threads"] = {
+            "active": len(get_active_threads()),
+            "total": len(load_thread_index()),
+        }
+    except Exception:
+        snap["threads"] = {"active": 0, "total": 0}
+    return snap
 
 
 # ── Daemon history ───────────────────────────────────────────────

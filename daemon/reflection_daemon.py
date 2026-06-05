@@ -150,6 +150,16 @@ class ReflectionDaemon:
                 digest_len=len(digest),
                 cycle_id=cycle_id)
 
+            # PHASE 4 #4: Prompt transparency - cycle fingerprint
+            try:
+                from models.prompts.templates import get_prompt_fingerprint
+                from config.directive import get_directive
+                directive = get_directive()
+                cycle_fp = get_prompt_fingerprint(directive, digest[:300], f"daemon-cycle:{cycle_id}")
+                log("prompt", "daemon_cycle_fingerprint", cycle_id=cycle_id, fp=cycle_fp)
+            except Exception as e:
+                log("prompt", "daemon_fp_error", error=str(e))
+
             await publish("daemon_triggered", {
                 "digest":        digest,
                 "session_turns": self._session.session_turns,
@@ -196,6 +206,15 @@ class ReflectionDaemon:
                         "curiosities": result.curiosities_found,
                         "error": False,
                     })
+                    # PHASE 4 #6 and #7: Record thread snapshot for observability and lifecycle
+                    try:
+                        from cognition.threads.store import get_active_threads, load_thread_index
+                        self._metrics.record_thread_snapshot(
+                            len(get_active_threads()),
+                            len(load_thread_index())
+                        )
+                    except Exception:
+                        pass
 
             except Exception as e:
                 log("daemon", "cycle_error", error=str(e))

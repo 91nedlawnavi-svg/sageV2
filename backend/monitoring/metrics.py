@@ -62,4 +62,24 @@ class AdminMetrics:
             "daemon_cycles_run": len(self.daemon_cycles),
             "error_by_subsystem": dict(self.error_counts),
             "daemon_last_run": self.daemon_cycles[-1]["ts"] if self.daemon_cycles else None,
+            # PHASE 4: Thread observability in metrics snapshot
+            "active_threads": self._get_active_thread_count(),
+            "thread_snapshots": list(getattr(self, 'thread_snapshots', []))[-5:],  # last few
         }
+
+    def _get_active_thread_count(self) -> int:
+        try:
+            from cognition.threads.store import get_active_threads
+            return len(get_active_threads())
+        except Exception:
+            return 0
+
+    def record_thread_snapshot(self, active_count: int, total_count: int) -> None:
+        """PHASE 4: Record thread state for observability."""
+        if not hasattr(self, 'thread_snapshots'):
+            self.thread_snapshots = deque(maxlen=20)
+        self.thread_snapshots.append({
+            "ts": time.time(),
+            "active": active_count,
+            "total": total_count,
+        })

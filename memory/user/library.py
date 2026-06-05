@@ -62,6 +62,50 @@ async def load_all_library_entries() -> list[tuple[str, str]]:
                 result.append((f"library/{cat}/{f.stem}", content))
     return result
 
+# PHASE 4 #3: Parse relations/groups from people notes for network backend + retrieval tie-in
+import re
+def parse_people_relations(content: str) -> dict:
+    """
+    Improved parser for relations in people library notes.
+    Extracts groups (e.g. "My band") and related people from phrases.
+    Returns {'groups': [...], 'related_people': [...]}
+    """
+    relations = {'groups': [], 'related_people': []}
+    lower_content = content.lower()
+    # Better group detection: look for "my band", "the band", "our group" etc.
+    group_match = re.search(r'(?:my|the|our|his|her)\s+(band|group|team|crew|circle)', lower_content)
+    if group_match:
+        g = group_match.group(0).strip()
+        if g not in relations['groups']:
+            relations['groups'].append(g.title())
+    # Related people: look for specific names after relation words, filter common
+    common = {'the', 'and', 'with', 'his', 'her', 'their', 'peers', 'family', 'school'}
+    rel_match = re.search(r'(?:with|bandmate of|friend of|colleague of|in .* with)\s+([A-Za-z][A-Za-z\s,]+?)(?:\.| and | or |$)', content, re.IGNORECASE)
+    if rel_match:
+        raw = rel_match.group(1)
+        names = [n.strip() for n in re.split(r',| and ', raw) if n.strip()]
+        for n in names:
+            if len(n) > 2 and n.lower() not in common and n.lower() not in [x.lower() for x in relations['related_people']]:
+                relations['related_people'].append(n)
+    return relations
+
+async def load_people_with_relations() -> list[dict]:
+    """For network backend + cognition: people + parsed relations."""
+    people = []
+    cat_dir = USER_LIBRARY_DIR / 'people'
+    if cat_dir.exists():
+        for f in cat_dir.glob("*.txt"):
+            content = await read_memory_entry(f)
+            if content:
+                rels = parse_people_relations(content)
+                people.append({
+                    'name': f.stem,
+                    'content': content,
+                    'groups': rels['groups'],
+                    'related': rels['related_people']
+                })
+    return people
+
 
 async def list_library_tree() -> dict[str, list[str]]:
     """Return {category: [name_stems]} for the UI library browser."""

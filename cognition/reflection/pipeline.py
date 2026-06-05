@@ -47,10 +47,12 @@ from cognition.sage_model.synthesis import (
 )
 from memory.sage.curiosity import load_pending_curiosities, update_curiosity_status, _parse_curiosity_entry
 from memory.sage.reflections import load_recent_sage_reflections
-from search.autonomy.budget import can_autonomous_search, record_autonomous_search
+from search.autonomy.budget import can_autonomous_search, record_autonomous_search, get_budget_status
 from search.autonomy.trigger import evaluate_triggers
 from search.pipeline import run_search
 from utils.logger import log
+from models.prompts.templates import get_prompt_fingerprint
+from config.directive import get_directive
 
 
 @dataclass
@@ -255,6 +257,7 @@ async def run_reflection_cycle(
         "reflection":  result.sage_reflection,
         "curiosities": result.curiosities_found,
         "search_ran":  result.search_ran,
+        "lifecycle": lifecycle_result,  # PHASE 4 #7 for structured context and cleanup visibility
     })
 
     result.duration_seconds = round(time.time() - t0, 2)
@@ -309,9 +312,13 @@ async def _maybe_run_autonomous_search(
     log("search", "autonomous_trigger_selected",
         topic=top.topic, signal=top.signal, priority=top.priority)
 
+    # PHASE 4 #1: Include budget status in autonomous search reason for flawless provenance
+    budget = get_budget_status()
+    enhanced_reason = f"{top.reason} [autonomous, budget: {budget['count']}/{budget['max']}, cooldown: {budget.get('cooldown_active', False)}]"
+
     outcome = await run_search(
         query=top.query,
-        reason=top.reason,
+        reason=enhanced_reason,
         initiator="Sage",
         client=client,
         persist_to_sage_memory=True,

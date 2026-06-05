@@ -29,10 +29,12 @@ from memory.user.library import (
     list_library_tree,
     load_library_entry,
     write_library_entry,
+    load_people_with_relations,  # PHASE 4 #3
 )
 from memory.user.episodic import load_recent_user_episodes
 from memory.sage.reflections import load_recent_sage_reflections
 from memory.storage.history import load_history
+from cognition.threads.store import get_active_threads, load_thread_index
 from search.autonomy.budget import get_budget_status
 from utils.logger import log
 
@@ -76,6 +78,20 @@ async def library_tree():
     """Return {category: [name_stems]} for all library categories."""
     tree = await list_library_tree()
     return JSONResponse({"library": tree})
+
+@router.get("/api/people/network")
+async def library_people_network():
+    """PHASE 4 #3: Return people with parsed relations for network view / cognition tie-in.
+    (Path chosen to avoid collision with dynamic /api/library/{cat}/{name} catch-all.)
+    """
+    people = await load_people_with_relations()
+    return JSONResponse({"people_network": people})
+
+# Compat alias (old path may have been used in early Phase 4 work)
+@router.get("/api/library/people/network")
+async def library_people_network_compat():
+    people = await load_people_with_relations()
+    return JSONResponse({"people_network": people})
 
 
 @router.get("/api/library/{category}/{name}")
@@ -131,9 +147,43 @@ async def sage_memories(n: int = 5):
     """
     Return Sage's recent internal reflections.
     Read-only — never writable via API.
+    PHASE 4 #7: Include active threads for structured context.
     """
     reflections = await load_recent_sage_reflections(n=min(n, 10))
-    return JSONResponse({"reflections": reflections})
+    try:
+        from cognition.threads.store import get_active_threads
+        threads = [{"topic": t.topic, "depth": t.depth, "salience": round(t.salience,2)} for t in get_active_threads()[:3]]
+    except:
+        threads = []
+    return JSONResponse({"reflections": reflections, "active_threads": threads})
+
+
+@router.get("/api/threads")
+async def active_threads():
+    """
+    PHASE 4 UPGRADE: Thread observability.
+    Return active cognitive threads (Sage's narrative mind).
+    Read-only. Includes priority, depth, linkages for continuity insight.
+    """
+    threads = get_active_threads()
+    # Return lightweight view (full index available via load_thread_index if needed)
+    data = [
+        {
+            "thread_id": t.thread_id,
+            "topic": t.topic,
+            "status": t.status,
+            "salience": round(t.salience, 3),
+            "depth": t.depth,
+            "priority": round(t.priority, 3),
+            "last_touched": t.last_touched,
+            "linked_reflections": len(t.linked_reflections),
+            "linked_curiosities": len(t.linked_curiosities),
+            "linked_searches": len(t.linked_searches),
+            "summary": t.summary[:120] if t.summary else "",
+        }
+        for t in threads
+    ]
+    return JSONResponse({"active_threads": data, "total_threads": len(load_thread_index())})
 
 
 # ── Search budget ─────────────────────────────────────────────────────
