@@ -302,11 +302,13 @@ Foundation architecture complete. Phase 4 upgrades COMPLETE (systematic 3 batche
 
 All 7 upgrades delivered. Focus areas advanced: retrieval quality, "different mind" proactivity+continuity (threads), search flawless (no drift, visible budget), library organization (network), observability (fps, snapshots, threads). 
 
-See the companion sageV2_analysis/ (UPGRADES_TRACKER.md for the full per-batch reports + benchmark evidence, PHASE4_PLAN.md, deep dives, and the live log watcher). 
+**Phase 4 Closure**: See `PHASE4_RETROSPECTIVE.md` (self-contained summary in this repo) and the companion `sageV2_analysis/` workspace (UPGRADES_TRACKER.md for full per-batch reports + evidence, PHASE4_PLAN.md, deep dives, and the live log watcher).
 
 **Live observation tooling**: `python scripts/watch_sage_logs.py` (while the server is running) streams the internal events — daemon cycles, thread lifecycle/engagement/cap blocks, autonomous searches (with budget status in the reason for provenance), reflections, curiosities, salience, etc. This is how you (and Sage) can see the "deeper truth" of the bounded mind in action.
 
 Benchmark confirmed 0 violations across the Phase 4 changes; autonomous searches now self-document their budget at execution time.
+
+**Git Snapshot**: Tag `phase4-complete` + [GitHub Release](https://github.com/91nedlawnavi-svg/sageV2/releases/tag/phase4-complete). Old `phase3a-reflection-engine` branch cleaned up. Repo now has a single clean `main` line.
 
 ---
 
