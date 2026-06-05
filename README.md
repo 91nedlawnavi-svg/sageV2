@@ -318,4 +318,4 @@ Sage is an experiment in persistent AI identity through memory architecture rath
 
 ---
 
-Built by a high school student in Indonesia, using Claude Sonnet 4.6 for orchestration and Command Code for implementation.
+Built by a high school student in Indonesia, using ChatGPT, Claude Sonnet, CommandCode, GrokBuild, OpenCode, and other coding agents for implementation.
