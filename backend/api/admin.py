@@ -115,27 +115,55 @@ async def admin_health():
     except Exception:
         disk = None
 
-    # Embedding health — lightweight: only validate the model is accessible on NVIDIA catalog
-    # A full embedding call wastes credits; the model listing endpoint is free
+    # Embedding health
+    # For local llama.cpp / OpenAI-compatible (current default): perform a minimal real embedding call.
+    # This validates the exact endpoint, payload formatting (incl. e5 prefixes), and that vectors are returned.
+    # For NVIDIA embedders: keep the lightweight catalog check to avoid spend.
     t0 = time.time()
     try:
         async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                "https://integrate.api.nvidia.com/v1/models",
-                headers={"Authorization": f"Bearer {NVIDIA_API_KEY}"},
-                timeout=10.0,
-            )
-        if resp.status_code == 200:
-            models = resp.json().get("data", [])
-            found = any(m.get("id") == EMBED_MODEL for m in models)
-            ok = found
-        else:
-            ok = False
+            is_nvidia = "nvidia" in EMBED_API_URL.lower() or bool(NVIDIA_API_KEY)
+
+            if is_nvidia:
+                # Legacy / optional NIM path for embeddings — catalog check (cheap)
+                resp = await client.get(
+                    "https://integrate.api.nvidia.com/v1/models",
+                    headers={"Authorization": f"Bearer {NVIDIA_API_KEY}"},
+                    timeout=10.0,
+                )
+                if resp.status_code == 200:
+                    models = resp.json().get("data", [])
+                    found = any(m.get("id") == EMBED_MODEL for m in models)
+                    ok = found
+                    err = None if ok else "model not found"
+                else:
+                    ok = False
+                    err = f"HTTP {resp.status_code}"
+            else:
+                # Local embedder (e.g. http://127.0.0.1:8081/v1/embeddings)
+                # Use the same prefix logic the app uses for e5 models.
+                payload = {"model": EMBED_MODEL, "input": "health"}
+                if "e5" in EMBED_MODEL.lower():
+                    payload["input"] = "query: health"
+
+                resp = await client.post(
+                    EMBED_API_URL,
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                    timeout=15.0,
+                )
+                try:
+                    data = resp.json() if resp.status_code < 500 else {}
+                except Exception:
+                    data = {}
+                ok = resp.status_code == 200 and bool(data.get("data"))
+                err = None if ok else ("no embedding data" if resp.status_code == 200 else f"HTTP {resp.status_code}")
+
         checks.append({
             "name": f"Embedding ({EMBED_MODEL})",
             "ok": ok,
             "latency_ms": round((time.time() - t0) * 1000, 1),
-            "error": None if ok else ("model not found" if resp.status_code == 200 else f"HTTP {resp.status_code}"),
+            "error": err,
         })
     except Exception as e:
         checks.append({
