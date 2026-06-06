@@ -111,7 +111,9 @@ async def get_embedding(
         return hit
 
     try:
-        is_nvidia = "nvidia" in EMBED_API_URL.lower() or bool(NVIDIA_API_KEY)
+        # Decide based on the embed endpoint URL itself.
+        # Do not key off NVIDIA_API_KEY (which is usually present for chat/reflection).
+        is_nvidia = "nvidia" in EMBED_API_URL.lower() or "integrate.api.nvidia.com" in EMBED_API_URL.lower()
 
         headers = {"Content-Type": "application/json"}
         if is_nvidia and NVIDIA_API_KEY:

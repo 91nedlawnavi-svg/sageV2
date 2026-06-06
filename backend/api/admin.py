@@ -122,9 +122,12 @@ async def admin_health():
     t0 = time.time()
     try:
         async with httpx.AsyncClient() as client:
-            is_nvidia = "nvidia" in EMBED_API_URL.lower() or bool(NVIDIA_API_KEY)
+            # Base the decision strictly on the embed URL, not the presence of NVIDIA_API_KEY
+            # (the key is typically set for chat/reflection even when using local embedder).
+            embed_url = (EMBED_API_URL or "").lower()
+            is_nvidia_embed = "nvidia" in embed_url or "integrate.api.nvidia.com" in embed_url
 
-            if is_nvidia:
+            if is_nvidia_embed:
                 # Legacy / optional NIM path for embeddings — catalog check (cheap)
                 resp = await client.get(
                     "https://integrate.api.nvidia.com/v1/models",
