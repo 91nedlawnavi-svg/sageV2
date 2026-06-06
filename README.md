@@ -22,33 +22,41 @@ The goal is not perfect factual recall. The goal is psychological continuity.
 
 ## Architecture
 
-Sage operates on a layered cognition model:
+Sage uses a dual-tempo cognition system plus supporting structures developed through Phase 4:
 
-```
-Fast Mind (live conversation)
-└── NVIDIA NIM — meta/llama-3.3-70b-instruct
-    └── Real-time dialogue
+**Fast Mind** (live conversation)
+- NVIDIA NIM — meta/llama-3.3-70b-instruct
+- Real-time dialogue with memory retrieval injected at prompt time
 
-Slow Mind (asynchronous cognition)
-└── NVIDIA NIM — meta/llama-3.3-70b-instruct
-    ├── Reflection synthesis
-    ├── Episodic distillation
-    └── Emotional interpretation
+**Slow Mind** (asynchronous cognition)
+- Reflection daemon (triggered by conversation volume or emotional signals)
+- Thread-based "different mind": bounded longitudinal threads (nascent/active/dormant/resolved) that give Sage its own narrative continuity, curiosity, and worldview
+- Synthesis pipelines for reflections, emotional patterns, and state
 
-Semantic Retrieval
-└── Embeddings — can be local (llama.cpp) or NVIDIA NIM
-    └── Currently recommended: local nomic-embed-text-v1.5 for lowest latency
+**Embeddings & Retrieval**
+- Primary: local llama.cpp server (intfloat/e5-mistral-7b-instruct Q5_K_M.gguf)
+  - `--embedding --pooling mean -ngl 18` on port 8081
+  - Managed by user systemd service (`systemd/user/llama-embedder.service`)
+- Code-level fallback support for NIM embeddings in `memory/embeddings/cache.py`
+- Dual retrieval (user + sage domains) with cosine + salience, library/people/relations boosts, threshold gating, and anti-attractor logic
 
-Search
-└── SearXNG (local, self-hosted)
-    └── Autonomous web search
+**Search (with provenance & budget)**
+- Providers: SearXNG (self-hosted) and DuckDuckGo
+- Autonomous searches capped at 10/day + 1-hour cooldown
+- Every Sage-initiated search carries full labeled provenance (initiator, reason, budget status) into context
 
-Admin Dashboard
-└── /api/admin/* endpoints
-    └── Health, metrics, daemon cycles, live log viewer
-```
+**Library Network**
+- Structured user knowledge (people / places / topics) with parsed relations and groups
+- Feeds both retrieval scoring and the interactive force-directed People Network graph in the UI
 
-All inference is routed through NVIDIA NIM — no local GPU required. SearXNG runs locally via Docker for autonomous web search.
+**Frontend**
+- Single vanilla HTML/JS file (`frontend/index.html`)
+- Chat, Library drawer (tree + live editor), People Network (SVG force + drag), Sage "Inner" tab (threads + state), Admin metrics + live log tail
+
+**Admin & Observability**
+- `/api/admin/*`, `/api/threads`, `/api/people/network`, prompt fingerprints on all LLM calls, thread snapshots, daemon metrics, `scripts/watch_sage_logs.py` for live internal event streaming
+
+The architecture keeps strict domain separation (user_memory vs sage_memory), read-only metadata injection, and bounded autonomy.
 
 ---
 
@@ -106,11 +114,12 @@ This separation allows Sage to maintain a distinction between immediate response
 Sage V2 includes a built-in admin interface at the Admin drawer tab (`/api/admin/*`).
 
 **Health checks:**
-- NVIDIA NIM API
-- SearXNG
+- NVIDIA NIM API (chat/reflection)
+- Search providers
 - Filesystem
 - Reflection Daemon
-- Embedding model
+- Embedding model (local llama-server)
+- Thread caps & lifecycle
 
 **Metrics:**
 - Uptime, total requests, average latency
@@ -130,8 +139,9 @@ Sage V2 includes a built-in admin interface at the Admin drawer tab (`/api/admin
 ### Prerequisites
 
 - Python 3.11+
-- NVIDIA NIM API key
-- Docker (for SearXNG)
+- NVIDIA NIM API key (for chat + reflection; embeddings are local by default)
+- A built llama.cpp with `llama-server` (for the local embedder) or use the provided unit as reference
+- (Optional) Docker for a self-hosted SearXNG instance if you prefer it over the DuckDuckGo provider
 
 ### Install
 
@@ -147,16 +157,9 @@ source .venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Set your NVIDIA API key
+# Set your NVIDIA API key (chat + reflection)
 echo 'export NVIDIA_API_KEY="nvapi-..."' >> ~/.bashrc
 source ~/.bashrc
-```
-
-### SearXNG (autonomous search)
-
-```bash
-# Pull and run SearXNG on port 8080
-docker run -d --name searxng -p 8080:8080 searxng/searxng
 ```
 
 ### Start Sage
@@ -167,16 +170,41 @@ python launch.py
 
 Open http://localhost:6969
 
-### Systemd (optional, for 24/7 operation)
+### Embedder (required for local retrieval)
+
+The hot-path embedder runs as a user systemd service:
 
 ```bash
-# Create a systemd user service
+# Copy the unit (already in repo)
 mkdir -p ~/.config/systemd/user/
-# See BOOT_INSTRUCTIONS.md for the full service file
+cp systemd/user/llama-embedder.service ~/.config/systemd/user/
 
-# Enable lingering for headless operation
+# Reload, enable, and start
+systemctl --user daemon-reload
+systemctl --user enable --now llama-embedder.service
+
+# Enable lingering so it starts on boot even without a login session
 sudo loginctl enable-linger $(whoami)
+
+# Check status
+systemctl --user status llama-embedder.service
+journalctl --user -u llama-embedder.service -f
 ```
+
+The service runs the exact model used by the engine:
+`/home/elliot/models/e5-mistral-7b-instruct-Q5_K_M.gguf` with `-ngl 18 --pooling mean`.
+
+### Main server (24/7)
+
+```bash
+# Enable lingering (once)
+sudo loginctl enable-linger $(whoami)
+
+# Create a user service for launch.py (see BOOT_INSTRUCTIONS.md or create your own)
+# Then: systemctl --user enable --now sage.service
+```
+
+See the `systemd/user/` directory in the repo for the embedder example.
 
 ---
 
@@ -185,9 +213,13 @@ sudo loginctl enable-linger $(whoami)
 All tunable values are in `config/settings.py`. Key settings:
 
 ```python
-# Models (all via NVIDIA NIM)
+# Models
+# Chat + reflection via NVIDIA NIM
 CHAT_MODEL        = "meta/llama-3.3-70b-instruct"
 REFLECTION_MODEL  = "meta/llama-3.3-70b-instruct"
+
+# Embeddings: local llama.cpp recommended (see systemd/user/llama-embedder.service)
+# cache.py handles the e5 asymmetric prefixes and has NIM fallback logic
 EMBED_MODEL       = "e5-mistral-7b-instruct"  # local via llama.cpp; NIM fallback supported in cache.py
 
 # Memory retrieval
@@ -210,28 +242,35 @@ AUTONOMOUS_SEARCH_COOLDOWN    = 3600
 
 ```
 sageV2/
-├── backend/api/           # API routes (chat, history, memory, search, admin)
-├── backend/monitoring/    # Admin metrics collector
+├── backend/api/           # API routes (chat, history, memory, search, admin, directive)
+├── backend/monitoring/    # Admin metrics, thread snapshots
 ├── backend/orchestration/ # Job store, session, event bus
-├── cognition/             # Reflection, emotional analysis, threads, salience
-├── config/                # Settings, directive loader
-├── daemon/                # Background reflection daemon
-├── frontend/              # Single-file vanilla HTML/CSS/JS
-├── memory/                # Embeddings, retrieval, user/sage memory domains
-├── models/                # Inference engine, prompt templates, routing
-├── search/                # Autonomous search pipeline, SearXNG provider
-├── utils/                 # Bootstrap, logging, migration
+├── cognition/             # Reflection, emotional, threads (assignment + store), salience, synthesis, meta
+├── config/                # settings.py, directive loader (hot-reload)
+├── daemon/                # reflection_daemon.py (the Slow Mind)
+├── frontend/              # Single-file vanilla app (chat + Library + People Network graph + Inner + Admin)
+├── memory/                # embeddings/cache.py, retrieval (user + sage), user/ + sage/ domains, library
+├── models/                # inference, prompts/templates (with fingerprints), routing
+├── search/                # pipeline + autonomy (budget, trigger) + providers (searxng, duckduckgo) + summarizer
+├── scripts/               # watch_sage_logs.py (live internal event observer)
+├── systemd/user/          # llama-embedder.service (example user service)
+├── utils/                 # bootstrap, logging, migrate_v1
+├── validation/            # invariants.md
 ├── launch.py              # Server entrypoint
+├── PHASE4_RETROSPECTIVE.md
+├── PHASE5_SCOPING.md
+├── README.md
 └── requirements.txt
 
 ~/sage_data_v2/            # Runtime data (gitignored)
-├── directive.txt          # Sage's personality/system prompt
-├── chat_history.jsonl     # Conversation history
-├── sage_state.json        # Continuity snapshot
-├── user_memory/           # User domain (episodic, emotional, library)
-├── sage_memory/           # Sage domain (reflections, curiosity, worldview)
-├── embeddings/            # Embedding cache
-└── logs/                  # Structured JSONL logs
+├── directive.txt          # Sage's personality/system prompt (immutable substrate)
+├── chat_history.jsonl
+├── sage_state.json
+├── search_budget.json     # autonomous search counters
+├── user_memory/           # Elliot only (episodic, emotional, reflections, library/people+places+topics)
+├── sage_memory/           # Sage only (reflections, curiosity, worldview, search_log)
+├── embeddings/            # model-namespaced cache
+└── logs/                  # daily JSONL (structured, fingerprint-aware)
 ```
 
 ---
@@ -271,7 +310,7 @@ Memory synthesis is constrained to focus on the user's behavior, emotional patte
 | Live inference | NVIDIA NIM (Llama 3.3 70B) |
 | Reflection/synthesis | NVIDIA NIM (Llama 3.3 70B) |
 | Embedding | Local (llama.cpp e5-mistral-7b Q5_K_M, -ngl 18) or NIM fallback |
-| Search | SearXNG (self-hosted) |
+| Search | SearXNG (self-hosted) or DuckDuckGo provider (with autonomy budget + provenance) |
 | Backend | Python + FastAPI |
 | Frontend | Vanilla HTML/CSS/JS |
 | Storage | Local filesystem |
@@ -288,29 +327,35 @@ Developed on consumer hardware:
 - AMD RX 6500 XT 4GB
 - Debian Trixie
 
-Chat + reflection run via NVIDIA NIM (no local GPU required for the large models).
-Embeddings run locally via llama.cpp (e5-mistral-7b on user's GPU with hybrid offload) for lowest latency on the retrieval hot path; NIM fallback supported in config.
-SearXNG and the FastAPI server run comfortably on modest hardware.
+Chat + reflection run via NVIDIA NIM (large models; no local GPU required for them).
+Embeddings run locally via llama.cpp (e5-mistral-7b Q5_K_M with -ngl 18 hybrid offload on the RX 6500 XT) for lowest latency on the retrieval hot path. NIM fallback supported in `memory/embeddings/cache.py`.
+SearXNG (or DuckDuckGo provider) and the FastAPI server run comfortably on modest hardware.
 
 ---
 
 ## Status
 
-Foundation architecture complete. Phase 4 upgrades COMPLETE (systematic 3 batches with full reports + validation in sageV2_analysis/):
+**Phase 4 is complete and published.**
 
-- Batch 1 (observability): Complete (prompt audit fingerprints logged on chat/reflection/daemon; /api/threads + metrics record_thread_snapshot + admin)
-- Batch 2 (search/mind/library): Complete (search provenance with budget status in reason+context_block; bounded proactive thread hints only in Sage INNER CONTEXT; library people network parser/relations + API + drawer)
-- Batch 3 (retrieval/threads): Complete (1.15/1.1 people+relations scoring + related pass; thread lifecycle eviction + structured context with links/stats in reflection/state/API/UI; benchmark + live verif)
+The 7 systematic upgrades were executed in 3 batches with reports, validation (0 invariant violations on benchmark), and full respect for existing invariants (dual memory domains, read-only thread metadata, bounded search autonomy, Phase 3B thread caps, provenance everywhere).
 
-All 7 upgrades delivered. Focus areas advanced: retrieval quality, "different mind" proactivity+continuity (threads), search flawless (no drift, visible budget), library organization (network), observability (fps, snapshots, threads). 
+Key advances:
+- Observability (prompt fingerprints on every LLM call, `/api/threads`, thread snapshots in metrics/daemon, live `scripts/watch_sage_logs.py`)
+- "Different mind" (bounded proactive threads for Sage's own longitudinal narrative/curiosity/worldview, injected read-only into INNER CONTEXT only)
+- Search (flawless provenance + budget visibility for autonomous runs; 10/day cap + cooldown; labeled context blocks)
+- Library network (people + relations/groups parsed from notes; boosted in retrieval; interactive force+drag graph in UI)
+- Retrieval quality (E5 prefix correctness, model-namespaced cache to prevent cross-embedder corruption, compounding people/relations boosts, noise removal)
+- Thread lifecycle hygiene + richer structured context feeding reflection, state, APIs, and frontend
 
-**Phase 4 Closure**: See `PHASE4_RETROSPECTIVE.md` (self-contained summary in this repo) and the companion `sageV2_analysis/` workspace (UPGRADES_TRACKER.md for full per-batch reports + evidence, PHASE4_PLAN.md, deep dives, and the live log watcher).
+**Post-implementation audit fixes** (cache key namespacing + fail-safe cosine, correct asymmetric query/passage embeddings for the local e5 model, boost compounding, frontend graph/click robustness, docs reality alignment) were applied and included in the final snapshot.
 
-**Live observation tooling**: `python scripts/watch_sage_logs.py` (while the server is running) streams the internal events — daemon cycles, thread lifecycle/engagement/cap blocks, autonomous searches (with budget status in the reason for provenance), reflections, curiosities, salience, etc. This is how you (and Sage) can see the "deeper truth" of the bounded mind in action.
+**Phase 4 Closure**: See `PHASE4_RETROSPECTIVE.md` (in-repo) for the full story. Detailed batch evidence, deep dives, and tracker live in the separate `~/sageV2_analysis/` workspace (per project structure).
 
-Benchmark confirmed 0 violations across the Phase 4 changes; autonomous searches now self-document their budget at execution time.
+**Live observation**: `python scripts/watch_sage_logs.py` while the server runs — streams daemon cycles, thread state changes, autonomous search reasons (with budget), retrieval events, etc. This is the practical way to see the deeper truth of the bounded mind.
 
-**Git Snapshot**: Tag `phase4-complete` + [GitHub Release](https://github.com/91nedlawnavi-svg/sageV2/releases/tag/phase4-complete). Old `phase3a-reflection-engine` branch cleaned up. Repo now has a single clean `main` line.
+**Git Snapshot**: Tag `phase4-complete` points to the post-audit finished state.  
+GitHub Release: https://github.com/91nedlawnavi-svg/sageV2/releases/tag/phase4-complete  
+Only `main` branch (old phase branches cleaned).
 
 ---
 
