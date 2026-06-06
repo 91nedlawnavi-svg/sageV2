@@ -48,7 +48,7 @@ async def _score_chunk(
 ) -> Optional[tuple[float, str, str]]:
     """Embed one chunk and return (raw_similarity, label, content). None on failure."""
     try:
-        vec = await get_embedding(content[:600], client)
+        vec = await get_embedding(content[:600], client, doc_type="passage")
         if vec is None:
             return None
         score = cosine_similarity(query_vec, vec)
@@ -79,7 +79,7 @@ async def retrieve_sage_memories(
     state = load_sage_state()
     state_block = build_state_injection(state)
 
-    query_vec = await get_embedding(query, client)
+    query_vec = await get_embedding(query, client, doc_type="query")
     if query_vec is None:
         return state_block if state_block else ""
 

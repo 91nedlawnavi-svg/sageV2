@@ -114,9 +114,8 @@ async def library_write(category: str, name: str, req: LibraryWriteRequest):
     """Write or overwrite a library entry (user domain only)."""
     if category not in LIBRARY_CATS:
         raise HTTPException(status_code=400, detail=f"Unknown category: {category}")
-    if not req.content.strip():
-        raise HTTPException(status_code=400, detail="Content cannot be empty.")
-    await write_library_entry(category, name, req.content)
+    # Allow empty content for new entries / clearing notes
+    await write_library_entry(category, name, req.content or "")
     log("api", "library_written", category=category, name=name)
     return JSONResponse({"ok": True, "category": category, "name": name})
 

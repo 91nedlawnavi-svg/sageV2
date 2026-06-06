@@ -36,8 +36,8 @@ Slow Mind (asynchronous cognition)
     └── Emotional interpretation
 
 Semantic Retrieval
-└── NVIDIA NIM — nvidia/nv-embedqa-e5-v5
-    └── Vector embedding for memory recall
+└── Embeddings — can be local (llama.cpp) or NVIDIA NIM
+    └── Currently recommended: local nomic-embed-text-v1.5 for lowest latency
 
 Search
 └── SearXNG (local, self-hosted)
@@ -188,7 +188,7 @@ All tunable values are in `config/settings.py`. Key settings:
 # Models (all via NVIDIA NIM)
 CHAT_MODEL        = "meta/llama-3.3-70b-instruct"
 REFLECTION_MODEL  = "meta/llama-3.3-70b-instruct"
-EMBED_MODEL       = "nvidia/nv-embedqa-e5-v5"
+EMBED_MODEL       = "e5-mistral-7b-instruct"  # local via llama.cpp; NIM fallback supported in cache.py
 
 # Memory retrieval
 TOP_K_USER_MEMORIES  = 4
@@ -270,7 +270,7 @@ Memory synthesis is constrained to focus on the user's behavior, emotional patte
 |---|---|
 | Live inference | NVIDIA NIM (Llama 3.3 70B) |
 | Reflection/synthesis | NVIDIA NIM (Llama 3.3 70B) |
-| Embedding | NVIDIA NIM (NV-EmbedQA E5-v5) |
+| Embedding | Local (llama.cpp e5-mistral-7b Q5_K_M, -ngl 18) or NIM fallback |
 | Search | SearXNG (self-hosted) |
 | Backend | Python + FastAPI |
 | Frontend | Vanilla HTML/CSS/JS |
@@ -288,7 +288,9 @@ Developed on consumer hardware:
 - AMD RX 6500 XT 4GB
 - Debian Trixie
 
-No local GPU required — all inference runs via NVIDIA NIM. SearXNG and the FastAPI server run comfortably on modest hardware.
+Chat + reflection run via NVIDIA NIM (no local GPU required for the large models).
+Embeddings run locally via llama.cpp (e5-mistral-7b on user's GPU with hybrid offload) for lowest latency on the retrieval hot path; NIM fallback supported in config.
+SearXNG and the FastAPI server run comfortably on modest hardware.
 
 ---
 

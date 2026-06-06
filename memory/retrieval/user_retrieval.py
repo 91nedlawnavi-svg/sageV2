@@ -44,7 +44,7 @@ async def _score_chunk(
 ) -> Optional[tuple[float, str, str]]:
     """Embed one memory chunk and return (score, label, content). None on failure."""
     try:
-        vec = await get_embedding(content[:600], client)
+        vec = await get_embedding(content[:600], client, doc_type="passage")
         if vec is None:
             return None
         score = cosine_similarity(query_vec, vec)
@@ -65,7 +65,7 @@ async def retrieve_user_memories(
     Returns a formatted string ready for prompt injection.
     Returns '' if nothing relevant found.
     """
-    query_vec = await get_embedding(query, client)
+    query_vec = await get_embedding(query, client, doc_type="query")
     if query_vec is None:
         return ""
 
@@ -115,10 +115,13 @@ async def retrieve_user_memories(
     scored = [r for r in results if r is not None and r[0] >= threshold]
     # PHASE 4 #5: Retrieval quality - slight boost for library/people entries (ties to network) + related pass for people with groups/related
     for i, (score, label, content) in enumerate(scored):
+        boost = 1.0
         if label.startswith('library/people'):
-            scored[i] = (score * 1.15, label, content)  # boost for people
+            boost *= 1.15  # people entries
         if 'relations' in label:
-            scored[i] = (score * 1.1, label, content)  # extra for network
+            boost *= 1.1   # network-relation entries (compounds with people)
+        if boost != 1.0:
+            scored[i] = (score * boost, label, content)
     scored.sort(key=lambda x: x[0], reverse=True)
     top = scored[:top_k]
 
@@ -138,16 +141,17 @@ async def retrieve_user_memories(
     for score, label, content in top:
         parts.append(f"[{label}]\n{content.strip()}")
 
-    # PHASE 4 #5: Related pass - if a library/people is in top results, include its related people from network for better context
+    # PHASE 4 #5: Related pass - if a library/people is in top results, include its related people from network for better context.
+    # NOTE: We deliberately do NOT inject placeholder noise strings. Real related content
+    # is already boosted via the relations-scored entries above. Adding non-informative
+    # text after top_k only pollutes the prompt.
+    # If richer injection is desired later, load the actual related note content (capped to 1-2)
+    # and only for names that have files.
     try:
         from memory.user.library import load_people_with_relations
         people_net = await load_people_with_relations()
-        # Simple: for each top person, add related if not already
         top_names = [l.split('/')[-1].replace('_relations','') for s,l,c in top if 'library/people' in l]
-        for p in people_net:
-            if p['name'] in top_names:
-                for rel in p['related']:
-                    parts.append(f"[library/people/{rel} (related to {p['name']})]\nRelated via network to retrieved person.")
+        # Future: for p in people_net: if p['name'] in top_names: for rel ... load real content
     except Exception as e:
         log("retrieval", "related_pass_error", error=str(e))
 

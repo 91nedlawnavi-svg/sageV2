@@ -1,0 +1,14 @@
+[Unit]
+Description=Local llama.cpp embedding server for Sage (e5-mistral-7b Q5_K_M)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/home/elliot/llama.cpp/build/bin/llama-server -m /home/elliot/models/e5-mistral-7b-instruct-Q5_K_M.gguf --embedding --pooling mean -ngl 18 -t 6 --host 127.0.0.1 --port 8081
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

@@ -1,13 +1,18 @@
 """
-memory/embeddings/cache.py — Local Embedding with LRU + Filesystem Cache
+memory/embeddings/cache.py — Embedding client with LRU + Filesystem Cache
 
-Wraps the BGE-M3 embedding endpoint with:
+Supports both:
+  - NVIDIA NIM (current default)
+  - Local llama.cpp server (--embedding) or any OpenAI-compatible /v1/embeddings endpoint
+
+Features:
   - In-memory LRU cache (avoid re-embedding identical text)
   - Filesystem cache (persistence across restarts)
   - Cosine similarity utility
+  - Auto-detects NVIDIA vs local format
 
-Preserved from V1's memory/embeddings.py — no behavior change.
-Only the import paths for config have been updated.
+The client will automatically drop NVIDIA-specific fields (Authorization + input_type)
+when EMBED_API_URL does not look like NVIDIA.
 """
 
 import asyncio
@@ -34,8 +39,11 @@ _cache: dict[str, list[float]] = {}
 _cache_lock = asyncio.Lock()
 
 
-def _key(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+def _key(text: str, model: str = "") -> str:
+    # Namespace by model (and text) so vectors from a different embedder/dimension
+    # are never reused for the wrong model. Prevents silent semantic corruption
+    # when switching embedders (e.g. NIM vs local, or different dimensions).
+    return hashlib.sha256((model + "\x00" + text).encode("utf-8")).hexdigest()
 
 
 async def _cache_get(key: str) -> Optional[list[float]]:
@@ -80,13 +88,18 @@ async def _fs_set(key: str, vec: list[float]) -> None:
 # ── Public API ────────────────────────────────────────────────────────
 
 async def get_embedding(
-    text: str, client: httpx.AsyncClient
+    text: str, client: httpx.AsyncClient, doc_type: str = "query"
 ) -> Optional[list[float]]:
     """
     Return embedding vector for text.
-    Check memory cache → filesystem cache → llama.cpp endpoint.
+    Check memory cache → filesystem cache → endpoint (NIM or local).
+
+    doc_type: "query" (for user input / retrieval queries) or "passage"
+    (for stored content). E5-family models require asymmetric prefixes for
+    best retrieval quality; using the same prefix for queries and passages
+    degrades ranking.
     """
-    key = _key(text)
+    key = _key(text, EMBED_MODEL)
 
     hit = await _cache_get(key)
     if hit is not None:
@@ -98,14 +111,25 @@ async def get_embedding(
         return hit
 
     try:
-        headers = {
-            "Authorization": f"Bearer {NVIDIA_API_KEY}",
-            "Content-Type": "application/json",
-        }
-        
+        is_nvidia = "nvidia" in EMBED_API_URL.lower() or bool(NVIDIA_API_KEY)
+
+        headers = {"Content-Type": "application/json"}
+        if is_nvidia and NVIDIA_API_KEY:
+            headers["Authorization"] = f"Bearer {NVIDIA_API_KEY}"
+
+        payload = {"model": EMBED_MODEL, "input": text}
+
+        if is_nvidia:
+            payload["input_type"] = doc_type
+        elif "e5" in EMBED_MODEL.lower():
+            # E5 instruct models want asymmetric prefixes.
+            # "query: " for retrieval queries; "passage: " for stored documents.
+            prefix = "query" if doc_type == "query" else "passage"
+            payload["input"] = f"{prefix}: {text}"
+
         resp = await client.post(
             EMBED_API_URL,
-            json={"model": EMBED_MODEL, "input": text, "input_type": "query"},
+            json=payload,
             headers=headers,
             timeout=30.0,
         )
@@ -122,7 +146,12 @@ async def get_embedding(
 
 
 def cosine_similarity(a: list[float], b: list[float]) -> float:
-    """Standard cosine similarity between two vectors."""
+    """Standard cosine similarity between two vectors.
+    Returns 0.0 (fail-safe) on dimension mismatch to avoid silent corruption
+    when a stale vector from a previous embedder is served.
+    """
+    if len(a) != len(b):
+        return 0.0
     dot = sum(x * y for x, y in zip(a, b))
     na  = math.sqrt(sum(x * x for x in a))
     nb  = math.sqrt(sum(x * x for x in b))

@@ -66,9 +66,10 @@ REFLECTION_TEMPERATURE = 0.7
 REFLECTION_MAX_TOKENS  = 220
 
 
-# ── NVIDIA NIM embedding model
-EMBED_API_URL   = "https://integrate.api.nvidia.com/v1/embeddings"
-EMBED_MODEL     = "nvidia/nv-embedqa-e5-v5"
+# ── Embedding model (local llama.cpp recommended)
+# Using intfloat/e5-mistral-7b-instruct GGUF via llama-server --embedding
+EMBED_API_URL   = "http://127.0.0.1:8081/v1/embeddings"
+EMBED_MODEL     = "e5-mistral-7b-instruct"
 EMBED_CACHE_MAX = 512
 
 

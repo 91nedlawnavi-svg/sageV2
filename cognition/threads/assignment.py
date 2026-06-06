@@ -72,7 +72,7 @@ async def assign_reflection_to_thread(
         return None
 
     # Embed the reflection
-    ref_vec = await get_embedding(reflection_text[:400], client)
+    ref_vec = await get_embedding(reflection_text[:400], client, doc_type="query")
     if ref_vec is None:
         return None
 
@@ -81,7 +81,7 @@ async def assign_reflection_to_thread(
     best_score = 0.0
 
     for thread in active_threads:
-        topic_vec = await get_embedding(thread.topic, client)
+        topic_vec = await get_embedding(thread.topic, client, doc_type="passage")
         if topic_vec is None:
             continue
         score = cosine_similarity(ref_vec, topic_vec)
@@ -137,12 +137,12 @@ async def assign_curiosity_to_thread(
     # Fall back to embedding similarity
     active_threads = get_active_threads()
     if active_threads:
-        cur_vec = await get_embedding(curiosity_topic, client)
+        cur_vec = await get_embedding(curiosity_topic, client, doc_type="query")
         if cur_vec:
             best_thread = None
             best_score = 0.0
             for thread in active_threads:
-                topic_vec = await get_embedding(thread.topic, client)
+                topic_vec = await get_embedding(thread.topic, client, doc_type="passage")
                 if topic_vec is None:
                     continue
                 score = cosine_similarity(cur_vec, topic_vec)

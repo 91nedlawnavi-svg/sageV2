@@ -79,12 +79,12 @@ async def retrieve_relevant_user_themes(
     if not themes:
         return []
 
-    query_vec = await get_embedding(query, client)
+    query_vec = await get_embedding(query, client, doc_type="query")
     if query_vec is None:
         return []
 
     async def _score(name: str, content: str):
-        vec = await get_embedding(content[:600], client)
+        vec = await get_embedding(content[:600], client, doc_type="passage")
         if vec is None:
             return None
         return (cosine_similarity(query_vec, vec), name, content)

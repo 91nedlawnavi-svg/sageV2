@@ -80,17 +80,7 @@
     letter-spacing: -0.01em;
   }
 
-  #header-sub {
-    font-size: 12px;
-    color: var(--muted);
-    font-weight: 400;
-  }
 
-  #header-sep {
-    width: 1px;
-    height: 14px;
-    background: var(--border2);
-  }
 
   #menu-btn {
     background: none;
@@ -286,6 +276,7 @@
     cursor: pointer;
     font-size: 10px;
     background: var(--bg2);
+    color: white;
   }
   .people-net-node:hover { background: var(--bg3); }
 
@@ -724,7 +715,7 @@
     border: none;
     color: var(--bg);
     width: 34px; height: 34px;
-    border-radius: 8px;
+    border-radius: 50%;
     cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
@@ -827,8 +818,6 @@
     <div id="header-left">
       <span id="status-dot"></span>
       <span id="header-title">Sage</span>
-      <div id="header-sep"></div>
-      <span id="header-sub">local · llama.cpp</span>
     </div>
     <div style="display: flex; align-items: center; gap: 8px;">
       <button id="menu-btn" aria-label="Menu" onclick="toggleDrawer()">
@@ -1490,12 +1479,12 @@ async function loadLibraryTree(el) {
       const cat  = catSel.value;
       const name = nameIn.value.trim();
       if (!name) return;
-      // Try V2 endpoint first, fallback to V1
       try {
-        const res = await fetch('/api/library/file/new', {
+        // V2: POST /api/library/{cat}/{name} with empty content to create the entry
+        const res = await fetch(`/api/library/${encodeURIComponent(cat)}/${encodeURIComponent(name)}`, {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({cat, name})
+          body: JSON.stringify({content: ''})
         });
         const j = await res.json();
         if (j.ok || j.status === 'ok') { nameIn.value = ''; await loadLibraryTree(el); }
@@ -1568,14 +1557,15 @@ async function loadLibraryTree(el) {
       });
     };
 
-    // People Network section (basic relational view for organization)
-    // Parses notes client-side for mentions of other known people; expandable
+    // People Network section
+    // Shows people from the library + relations loaded from backend (/api/people/network).
+    // Also includes a simple client-side scan for direct name co-mentions as a secondary view.
     if (tree.people && tree.people.length > 0) {
       const netSection = document.createElement('div');
       netSection.style.cssText = 'margin-top:10px; padding-top:8px; border-top:1px solid var(--border2);';
       const netHeader = document.createElement('div');
       netHeader.style.cssText = 'font-size:11px; color:var(--muted); margin-bottom:4px; cursor:pointer; user-select:none;';
-      netHeader.innerHTML = '👥 People Network <span style="font-size:9px;">(click to expand • basic co-mentions from notes)</span>';
+      netHeader.innerHTML = 'People Network <span style="font-size:9px;">(click to expand • basic co-mentions from notes)</span>';
       const netContent = document.createElement('div');
       netContent.style.display = 'none';
       netContent.style.fontSize = '11px';
@@ -1585,7 +1575,7 @@ async function loadLibraryTree(el) {
       const nodesDiv = document.createElement('div');
       nodesDiv.style.cssText = 'display:flex; flex-wrap:wrap; gap:4px; margin:4px 0;';
 
-      // Fetch and scan notes for connections (async but fire-and-forget for UI)
+      // Client-side scan for direct name co-mentions in notes (secondary / fallback view)
       (async () => {
         const connections = {};
         for (const p of knownPeople) {
@@ -1621,7 +1611,7 @@ async function loadLibraryTree(el) {
           });
           connList.innerHTML = html;
         } else {
-          connList.textContent = 'No explicit connections detected in current notes yet. (Add "band with naufal" style mentions to notes for auto-links.)';
+          connList.textContent = 'No explicit connections detected in current notes yet.';
         }
 
         // PHASE 4 #3: Use backend network API for richer relations (fallback to client scan)
@@ -1632,7 +1622,7 @@ async function loadLibraryTree(el) {
             const netPeople = netD.people_network || [];
             if (netPeople.length > 0) {
               const netList = document.createElement('div');
-              netList.style.cssText = 'margin-top:4px; font-size:10px;';
+              netList.style.cssText = 'margin-top:4px; font-size:10px; color: white;';
               netPeople.forEach(p => {
                 let relText = '';
                 if (p.groups && p.groups.length) relText += `Groups: ${p.groups.join(', ')} `;
@@ -1645,37 +1635,212 @@ async function loadLibraryTree(el) {
               });
               if (netList.children.length) netContent.appendChild(netList);
             }
-          }
-        } catch(e) {
-          // fallback to previous client scan
-        }
 
-        // Demo group detection (scan notes for common group words)
-        const groupWords = ['band', 'group', 'team', 'crew', 'classmates'];
-        let groupsFound = [];
-        // Re-scan for groups (simple)
-        for (const p of knownPeople) {
-          try {
-            const r = await fetch(`/api/library/people/${encodeURIComponent(p)}`);
-            if (r.ok) {
-              const d = await r.json();
-              const content = (d.content || '').toLowerCase();
-              groupWords.forEach(gw => {
-                if (content.includes(gw)) {
-                  if (!groupsFound.includes(gw)) groupsFound.push(gw);
-                }
+            // Visual graph (Obsidian-like network view with force settle + dragging)
+            // Clean implementation to avoid syntax issues.
+            try {
+              const width = 320;
+              const height = 170;
+
+              const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+              svg.setAttribute("width", "100%");
+              svg.setAttribute("height", "170");
+              svg.style.cssText = "border:1px solid var(--border); background:var(--bg2); border-radius:4px; margin-top:6px; display:block; cursor: grab;";
+              svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+
+              // Build node data and edges
+              const nodeData = {};
+              const edgeList = [];
+
+              netPeople.forEach((p, i) => {
+                const angle = (i / Math.max(1, netPeople.length)) * Math.PI * 2;
+                nodeData[p.name] = {
+                  id: p.name,
+                  x: width / 2 + Math.cos(angle) * 75,
+                  y: height / 2 + Math.sin(angle) * 45,
+                  vx: 0,
+                  vy: 0,
+                  data: p
+                };
               });
+
+              netPeople.forEach(p => {
+                (p.related || []).forEach(rel => {
+                  if (nodeData[rel]) edgeList.push({ source: p.name, target: rel });
+                });
+                (p.groups || []).forEach(g => {
+                  netPeople.forEach(o => {
+                    if (o.name !== p.name && (o.groups || []).includes(g)) {
+                      const exists = edgeList.some(e =>
+                        (e.source === p.name && e.target === o.name) || (e.source === o.name && e.target === p.name)
+                      );
+                      if (!exists) edgeList.push({ source: p.name, target: o.name, group: true });
+                    }
+                  });
+                });
+              });
+
+              // Create SVG elements
+              const lines = [];
+              edgeList.forEach(e => {
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("stroke", e.group ? "var(--accent-dim, #4a9)" : "var(--border)");
+                line.setAttribute("stroke-width", e.group ? "1.5" : "1");
+                line.setAttribute("stroke-opacity", "0.55");
+                svg.appendChild(line);
+                lines.push({ e, line });
+              });
+
+              const circles = [];
+              const texts = [];
+              const groups = [];
+              Object.values(nodeData).forEach(nd => {
+                const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                g.style.cursor = "grab";
+
+                const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                c.setAttribute("r", "13");
+                c.setAttribute("fill", "var(--bg3)");
+                c.setAttribute("stroke", "var(--border)");
+                c.setAttribute("stroke-width", "1.5");
+                g.appendChild(c);
+
+                const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                t.setAttribute("text-anchor", "middle");
+                t.setAttribute("dominant-baseline", "middle");
+                t.setAttribute("fill", "white");
+                t.setAttribute("font-size", "8.5");
+                t.setAttribute("font-family", "var(--sans, sans-serif)");
+                t.textContent = nd.id.length > 9 ? nd.id.slice(0, 8) + "…" : nd.id;
+                g.appendChild(t);
+
+                svg.appendChild(g);
+                circles.push({ nd, c });
+                texts.push({ nd, t });
+                groups.push(g);
+
+                g.addEventListener("click", () => loadLibraryFile('people', nd.id, null, el));
+              });
+
+              function updateGraph() {
+                lines.forEach(({ e, line }) => {
+                  const a = nodeData[e.source];
+                  const b = nodeData[e.target];
+                  if (a && b) {
+                    line.setAttribute("x1", a.x);
+                    line.setAttribute("y1", a.y);
+                    line.setAttribute("x2", b.x);
+                    line.setAttribute("y2", b.y);
+                  }
+                });
+                circles.forEach(({ nd, c }) => {
+                  c.setAttribute("cx", nd.x);
+                  c.setAttribute("cy", nd.y);
+                });
+                texts.forEach(({ nd, t }) => {
+                  t.setAttribute("x", nd.x);
+                  t.setAttribute("y", nd.y);
+                });
+              }
+
+              // Simple force settle
+              function settle(steps = 40) {
+                const nodes = Object.values(nodeData);
+                for (let s = 0; s < steps; s++) {
+                  // Repel
+                  for (let i = 0; i < nodes.length; i++) {
+                    for (let j = i + 1; j < nodes.length; j++) {
+                      const a = nodes[i], b = nodes[j];
+                      let dx = b.x - a.x, dy = b.y - a.y;
+                      let d = Math.hypot(dx, dy) || 1;
+                      const f = 150 / (d * d);
+                      a.x -= (dx / d) * f;
+                      a.y -= (dy / d) * f;
+                      b.x += (dx / d) * f;
+                      b.y += (dy / d) * f;
+                    }
+                  }
+                  // Attract edges
+                  edgeList.forEach(e => {
+                    const a = nodeData[e.source], b = nodeData[e.target];
+                    if (!a || !b) return;
+                    let dx = b.x - a.x, dy = b.y - a.y;
+                    let d = Math.hypot(dx, dy) || 1;
+                    const f = (d - 55) * 0.12;
+                    a.x += (dx / d) * f;
+                    a.y += (dy / d) * f;
+                    b.x -= (dx / d) * f;
+                    b.y -= (dy / d) * f;
+                  });
+                  // Bounds
+                  nodes.forEach(n => {
+                    n.x = Math.max(18, Math.min(width - 18, n.x));
+                    n.y = Math.max(18, Math.min(height - 18, n.y));
+                  });
+                }
+                updateGraph();
+              }
+
+              // Initial settle
+              settle(60);
+              updateGraph();
+
+              // Dragging
+              let dragged = null;
+              let offX = 0, offY = 0;
+
+              groups.forEach((g, idx) => {
+                const nd = Object.values(nodeData)[idx];
+                g.addEventListener("mousedown", (e) => {
+                  dragged = nd;
+                  const rect = svg.getBoundingClientRect();
+                  const mx = (e.clientX - rect.left) / rect.width * width;
+                  const my = (e.clientY - rect.top) / rect.height * height;
+                  offX = nd.x - mx;
+                  offY = nd.y - my;
+                  g.style.cursor = "grabbing";
+                  e.stopPropagation();
+                  e.preventDefault();
+                });
+              });
+
+              svg.addEventListener("mousemove", (e) => {
+                if (!dragged) return;
+                const rect = svg.getBoundingClientRect();
+                const mx = (e.clientX - rect.left) / rect.width * width;
+                const my = (e.clientY - rect.top) / rect.height * height;
+                dragged.x = mx + offX;
+                dragged.y = my + offY;
+                updateGraph();
+              });
+
+              // Single global mouseup handler (replace any prior render's handler)
+              // so re-rendering the Library tab doesn't stack stale listeners
+              // that close over old dragged/groups/settle from a previous render.
+              if (window.__sagePeopleMouseUp) {
+                window.removeEventListener("mouseup", window.__sagePeopleMouseUp);
+              }
+              window.__sagePeopleMouseUp = () => {
+                if (dragged) {
+                  groups.forEach(g => g.style.cursor = "grab");
+                  settle(25); // force settle after drag
+                  dragged = null;
+                }
+              };
+              window.addEventListener("mouseup", window.__sagePeopleMouseUp);
+
+              netContent.appendChild(svg);
+
+            } catch (e) {
+              console.warn("People graph render skipped:", e);
             }
-          } catch(e) {}
-        }
-        if (groupsFound.length > 0) {
-          const gDiv = document.createElement('div');
-          gDiv.style.cssText = 'margin-top:4px; color:var(--accent, #4a9); font-size:10px;';
-          gDiv.textContent = `Groups hinted: ${groupsFound.join(', ')} (e.g. "My band")`;
-          netContent.appendChild(gDiv);
-        }
-        netContent.appendChild(nodesDiv);
-        netContent.appendChild(connList);
+            } // close: if (netR.ok)
+          } catch (netErr) {
+            console.warn("People network fetch skipped:", netErr);
+          } // close: try (backend /api/people/network fetch)
+
+            netContent.appendChild(nodesDiv);
+            netContent.appendChild(connList);
       })();
 
       netHeader.onclick = () => {
@@ -1744,25 +1909,16 @@ async function loadLibraryFile(cat, name, btn, treeEl) {
       saveBtn.disabled = true;
       status.textContent = 'Saving…'; status.className = 'editor-status';
       try {
-        // Try V2 endpoint
+        // V2 endpoint (primary)
+        const res = await fetch(`/api/library/${encodeURIComponent(cat)}/${encodeURIComponent(name)}`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({content: ta.value})
+        });
         let ok = false;
-        try {
-          const res2 = await fetch(`/api/library/${encodeURIComponent(cat)}/${encodeURIComponent(name)}`, {
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({content: ta.value})
-          });
-          if (res2.ok) { const j = await res2.json(); ok = j.ok || j.status === 'ok'; }
-        } catch(e2) {}
-        // Fallback V1
-        if (!ok) {
-          const res1 = await fetch('/api/library/file', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({cat, name, content: ta.value})
-          });
-          const j1 = await res1.json();
-          ok = j1.ok;
+        if (res.ok) {
+          const j = await res.json();
+          ok = j.ok || j.status === 'ok';
         }
         if (ok) { status.textContent = 'Saved.'; status.className = 'editor-status ok'; }
         else    { status.textContent = 'Error.'; status.className = 'editor-status err'; }
