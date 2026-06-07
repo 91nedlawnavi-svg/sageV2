@@ -5,7 +5,7 @@ Orchestrates one complete daemon reflection cycle.
 This is the Phase 1 replacement for V1's cognition/reflection.py.
 
 V1 had a single flat reflection function that mixed user and sage
-cognition in one blob. V2 runs them as explicit ordered phases:
+cognition in one blob. Sage runs them as explicit ordered phases:
 
   Phase A — User Domain (Elliot's memory, same as V1):
     A1. Extract episodic memory from digest

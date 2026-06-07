@@ -1,4 +1,6 @@
-# Sage V2
+# Sage
+
+> Formerly known as SageV2 during its architectural maturation (Phases 1–4). The name was simplified after the core "V2" foundations (dual memory domains, bounded threads, provenanceful search, local embeddings, observability) were stabilized.
 
 An autobiographical AI companion built for long-term continuity, reflective memory, and persistent identity.
 
@@ -147,8 +149,8 @@ Sage V2 includes a built-in admin interface at the Admin drawer tab (`/api/admin
 
 ```bash
 # Clone
-git clone https://github.com/91nedlawnavi-svg/sageV2.git
-cd sageV2
+git clone https://github.com/91nedlawnavi-svg/sage.git
+cd sage
 
 # Create virtual environment
 python3 -m venv .venv
@@ -241,7 +243,7 @@ AUTONOMOUS_SEARCH_COOLDOWN    = 3600
 ## Directory Structure
 
 ```
-sageV2/
+sage/
 ├── backend/api/           # API routes (chat, history, memory, search, admin, directive)
 ├── backend/monitoring/    # Admin metrics, thread snapshots
 ├── backend/orchestration/ # Job store, session, event bus
@@ -349,12 +351,12 @@ Key advances:
 
 **Post-implementation audit fixes** (cache key namespacing + fail-safe cosine, correct asymmetric query/passage embeddings for the local e5 model, boost compounding, frontend graph/click robustness, docs reality alignment) were applied and included in the final snapshot.
 
-**Phase 4 Closure**: See `PHASE4_RETROSPECTIVE.md` (in-repo) for the full story. Detailed batch evidence, deep dives, and tracker live in the separate `~/sageV2_analysis/` workspace (per project structure).
+**Phase 4 Closure**: See `PHASE4_RETROSPECTIVE.md` (in-repo) for the full story. Detailed batch evidence, deep dives, and tracker live in the separate `~/sage_analysis/` workspace (per project structure).
 
 **Live observation**: `python scripts/watch_sage_logs.py` while the server runs — streams daemon cycles, thread state changes, autonomous search reasons (with budget), retrieval events, etc. This is the practical way to see the deeper truth of the bounded mind.
 
 **Git Snapshot**: Tag `phase4-complete` points to the post-audit finished state.  
-GitHub Release: https://github.com/91nedlawnavi-svg/sageV2/releases/tag/phase4-complete  
+GitHub Release: https://github.com/91nedlawnavi-svg/sage/releases/tag/phase4-complete  
 Only `main` branch (old phase branches cleaned).
 
 ---

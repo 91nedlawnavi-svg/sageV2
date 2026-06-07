@@ -1,8 +1,37 @@
+# Virtual env and Python
 .venv/
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Runtime data (never commit - contains memories, embeddings, logs, directive)
 sage_data/
+sage_data_v2/
+*.zip
+
+# Environment and secrets
 .env
+.env.*
+
+# Agent / tool workspaces (local only)
 .commandcode/
 .claude/
+.cursor/
+.vscode/
+
+# Python / project
 .python-version
+*.egg-info/
+dist/
+build/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*~
+
+# External tool source (llama.cpp full tree, picom, etc. live outside or as submodules if needed)
+llama.cpp/
+searxng/
+picom/

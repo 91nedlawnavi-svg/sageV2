@@ -22,7 +22,7 @@ Cognitive hierarchy enforced in every nim_complete call:
 The directive acts as the stable interpretive lens. Task prompts operate
 within that lens, not above it.
 
-This is entirely new in V2 — V1 had no Sage-domain cognition.
+This was introduced to give Sage her own domain cognition (V2 era) — V1 had no Sage-domain cognition.
 These processes run in the same daemon cycle as user-domain synthesis
 but write to completely separate memory paths (Phase 1 invariants preserved).
 """

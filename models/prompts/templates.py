@@ -33,7 +33,7 @@ def build_chat_messages(
     """
     Assemble the full message list for the chat model.
 
-    V2 changes vs V1:
+    Changes vs V1 (historical):
       - user_memory and sage_memory are injected separately with distinct labels
       - search_context is injected as its own structured block
       - Each injection has a clear header so the model knows the source
@@ -300,7 +300,7 @@ def compose_worldview_system(directive: str) -> str:
 
 # ══════════════════════════════════════════════════════════════════════
 # SAGE-DOMAIN PROMPTS (Sage's internal experience)
-# New in V2 — prompts for Sage's own memory, never mixed with Elliot's
+# Prompts for Sage's own memory (introduced to enforce domain separation), never mixed with Elliot's
 # ══════════════════════════════════════════════════════════════════════
 
 SAGE_REFLECTION_SYSTEM = """\

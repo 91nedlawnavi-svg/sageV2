@@ -4,7 +4,7 @@ utils/migrate_v1.py — V1 → V2 Memory Migration
 Imports all V1 memory files into the V2 user-domain memory directories.
 Run once, manually, after installing V2:
 
-    cd ~/sageV2 && python utils/migrate_v1.py
+    cd ~/sage && python utils/migrate_v1.py
 
 What migrates:
   V1 ~/sage/episodic/*.txt  → V2 USER_EPISODIC_DIR/*.txt
@@ -111,7 +111,7 @@ def main():
 
     print("Next steps:")
     print("  1. Copy your directive:  cp ~/sage/directive.txt ~/sage_data_v2/directive.txt")
-    print("  2. Start V2:             cd ~/sageV2 && python launch.py")
+    print("  2. Start V2:             cd ~/sage && python launch.py")
     print("  3. V1 source is untouched — keep it until V2 is stable.\n")
 
 

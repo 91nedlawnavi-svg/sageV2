@@ -1,4 +1,4 @@
-# Sage V2 — Phase 1 Invariants
+# Sage — Phase 1 Invariants (foundational; evolved through later phases)
 
 ## Domain Separation
 
@@ -50,7 +50,7 @@
 
 ## Architectural Constraints
 
-17. Sage V2 must not evolve into an unrestricted autonomous agent system.
+17. Sage must not evolve into an unrestricted autonomous agent system.
 
 18. Cognitive orchestration must remain modular and interpretable.
 

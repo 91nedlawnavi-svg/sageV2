@@ -7,7 +7,7 @@ then writes or merges entries into the user library.
 Logic preserved from V1's cognition/library_extraction.py.
 Changes:
   1. Uses memory/user/library.py instead of inline file ops
-  2. Imports point to V2 module paths
+  2. Imports point to module paths (post-V1)
   3. No behavioral changes
 """
 

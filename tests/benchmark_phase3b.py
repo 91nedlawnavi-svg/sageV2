@@ -8,7 +8,7 @@ Usage:
 
 Outputs:
     - Benchmark report to stdout
-    - Detailed metrics to ~/sage_data_v2/benchmark_phase3b_TIMESTAMP.json
+    - Detailed metrics to ~/sage_data_v2/benchmark_phase3b_TIMESTAMP.json  # data dir unchanged after rebrand
 """
 
 import asyncio

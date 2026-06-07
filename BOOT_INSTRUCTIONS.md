@@ -8,8 +8,8 @@
 ## Installation
 
 ```bash
-# 1. Clone / copy the sageV2 directory to your home
-cd ~/sageV2
+# 1. Clone / copy the sage directory to your home
+cd ~/sage
 
 # 2. Install Python dependencies
 pip install -r requirements.txt
@@ -105,15 +105,17 @@ tail -f ~/sage_data_v2/logs/sage.$(date +%Y-%m-%d).jsonl | python3 -m json.tool
 
 ---
 
-## Inference Architecture (Fully NIM)
+## Current Inference Architecture (as of post-Phase 4)
 
-Sage V2 no longer requires local `llama.cpp` servers. All cognitive workloads are routed through NVIDIA NIM, freeing up local VRAM entirely.
+- **Chat & Reflection/Synthesis**: NVIDIA NIM (meta/llama-3.3-70b-instruct by default).
+- **Embeddings (hot path, recommended)**: Local llama.cpp server running intfloat/e5-mistral-7b-instruct Q5_K_M.gguf.
+  - Served via user systemd service (see `systemd/user/llama-embedder.service` in repo): `llama-server ... --embedding --pooling mean -ngl 18 ... --port 8081`.
+  - Fast local retrieval with proper e5 asymmetric prefixes (query: / passage: ).
+- **Search**: Providers include SearXNG (self-hosted) or DuckDuckGo fallback, with autonomous budget enforcement.
 
-- **Live Chat**: `mistralai/mistral-large-2-instruct` (chosen for conversational nuance and reduced "assistant" drift).
-- **Reflection/Synthesis**: `mistralai/mistral-small-4-119b-2603` (high-fidelity emotional distillation).
-- **Embedding/Retrieval**: `baai/bge-m3` (multilingual, multi-vector retrieval, hosted on NIM).
+NIM is used for the large models (no local GPU needed for 70B). Local embedder gives low-latency, private retrieval. See README.md "Stack" and "Hardware" sections + the systemd unit for exact current setup.
 
-If the NIM API is unreachable, Sage will log the error and gracefully degrade (e.g., responding without memory retrieval).
+If the embedder or NIM is unreachable, retrieval gracefully degrades.
 
 ---
 

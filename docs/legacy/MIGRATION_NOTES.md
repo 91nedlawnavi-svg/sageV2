@@ -51,7 +51,7 @@ NEW in V2:
 ### Automated (recommended)
 
 ```bash
-cd ~/sageV2
+cd ~/sage
 python utils/migrate_v1.py
 ```
 

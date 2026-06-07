@@ -1,11 +1,11 @@
 """
-launch.py — Sage V2 Server Entry Point
+launch.py — Sage Server Entry Point
 
 Boots the FastAPI server and wires all subsystems together.
 
 V1's launch.py was a 500-line monolith containing: route logic, session
 globals, daemon threading, prompt building, and inference calls all
-in one file. V2's launch.py is a thin orchestrator — it creates the
+in one file. Sage's launch.py is a thin orchestrator — it creates the
 shared objects and injects them into the modules that own the logic.
 
 Boot sequence:
@@ -50,7 +50,7 @@ from utils.logger import log, set_error_hook
 
 # ── FastAPI app ───────────────────────────────────────────────────────
 
-app = FastAPI(title="Sage V2", version="2.0.0-phase1", docs_url=None)
+app = FastAPI(title="Sage", version="2.0", docs_url=None)
 
 # Module-level references for shutdown handler
 _client:  httpx.AsyncClient | None = None
@@ -100,7 +100,7 @@ async def startup():
     init_admin_routes(metrics=_metrics, daemon=_daemon)
 
     log("bootstrap", "startup_complete", port=PORT)
-    print(f"\n✦ Sage V2 running on http://localhost:{PORT}\n")
+    print(f"\n✦ Sage running on http://localhost:{PORT}\n")
 
 
 @app.on_event("shutdown")

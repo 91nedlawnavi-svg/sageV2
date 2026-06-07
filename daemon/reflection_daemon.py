@@ -1,5 +1,5 @@
 """
-daemon/reflection_daemon.py — Sage V2 Background Reflection Daemon
+daemon/reflection_daemon.py — Sage Background Reflection Daemon
 
 An async background task that monitors the session and triggers the
 dual-domain reflection cycle when conditions are met.

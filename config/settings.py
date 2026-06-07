@@ -1,5 +1,5 @@
 """
-config/settings.py — Sage V2 System Configuration
+config/settings.py — Sage System Configuration
 
 Single source of truth for all constants, paths, and tunable parameters.
 Separated from V1's flat config.py into a proper config module with

@@ -3,7 +3,7 @@
 **Date**: 2026-06-05  
 **Commit**: 3bb7f11 (Phase 4: 7 systematic upgrades...)  
 **Tag**: `phase4-complete`  
-**GitHub Release**: https://github.com/91nedlawnavi-svg/sageV2/releases/tag/phase4-complete  
+**GitHub Release**: https://github.com/91nedlawnavi-svg/sage/releases/tag/phase4-complete  
 **Status**: **Phase 4 Closed**
 
 ---
@@ -97,8 +97,8 @@ All changes preserved:
 
 ## Documentation
 
-- **In the main engine** (`~/sageV2`): This retrospective + updated README Status section + the live observer script.
-- **In the analysis workspace** (`~/sageV2_analysis`): Full `UPGRADES_TRACKER.md` (detailed per-batch reports, inspections, code locations, live verifs), `PHASE4_PLAN.md`, deep dives (RETRIEVAL_DEEP_DIVE, DAEMON_CYCLE_ANATOMY, PROMPT_CONSTRUCTION, THREADS_AND_NARRATIVE), and process notes.
+- **In the main engine** (`~/sage`): This retrospective + updated README Status section + the live observer script.
+- **In the analysis workspace** (`~/sage_analysis`): Full `UPGRADES_TRACKER.md` (detailed per-batch reports, inspections, code locations, live verifs), `PHASE4_PLAN.md`, deep dives (RETRIEVAL_DEEP_DIVE, DAEMON_CYCLE_ANATOMY, PROMPT_CONSTRUCTION, THREADS_AND_NARRATIVE), and process notes.
 
 This split matches the user's explicit structure (main engine in GitHub, analysis as private working space, data as personal accumulation).
 
@@ -163,7 +163,7 @@ Possible directions (not commitments):
 - Further tightening of search budget UI/visibility.
 - Phase 5 planning session when ready.
 
-The analysis workspace (`~/sageV2_analysis/`) remains the place for deep ongoing work, exactly as structured.
+The analysis workspace (`~/sage_analysis/`) remains the place for deep ongoing work, exactly as structured.
 
 ---
 

@@ -18,7 +18,7 @@ Threads ARE:
   - Linkage-tracked (which reflections, curiosities, searches belong to them)
 
 Filesystem layout:
-  ~/sage_data_v2/sage_memory/threads/
+  ~/sage_data_v2/sage_memory/threads/  # data dir name preserved post-rebrand
   ├── thread_index.json          ← all thread metadata (single source of truth)
   └── entries/
       ├── thread_001_entries.jsonl  ← linked artifact references for thread 001

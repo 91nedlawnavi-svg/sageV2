@@ -1,5 +1,5 @@
 """
-utils/bootstrap.py — Sage V2 Bootstrap
+utils/bootstrap.py — Sage Bootstrap
 
 Runs at server startup. Responsibilities:
   1. Create all required data directories

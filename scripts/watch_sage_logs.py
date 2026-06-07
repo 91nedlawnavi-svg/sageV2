@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Sage V2 Live Log Observer
+Sage Live Log Observer
 
 Watches the newest daily log in ~/sage_data_v2/logs/ and streams filtered events
 that reveal the internal "mind" (daemon cycles, bounded threads & lifecycle,
@@ -24,7 +24,7 @@ import sys
 import time
 from pathlib import Path
 
-DEFAULT_LOG_DIR = Path.home() / "sage_data_v2" / "logs"
+DEFAULT_LOG_DIR = Path.home() / "sage_data_v2" / "logs"  # runtime data stays sage_data_v2 even after source rebrand to 'sage'
 DEFAULT_FILTER = r'(daemon|cycle|thread|lifecycle|search|budget|reflection|curiosit|proactive|retrieval|prompt|salience|worldview|meta)'
 
 def find_latest_log(log_dir: Path) -> Path | None:

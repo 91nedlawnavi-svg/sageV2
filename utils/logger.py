@@ -1,5 +1,5 @@
 """
-utils/logger.py — Sage V2 Structured Runtime Logger
+utils/logger.py — Sage Structured Runtime Logger
 
 JSONL log file: ~/sage_data_v2/logs/sage.YYYY-MM-DD.jsonl  (daily rotation)
 Each line is a self-contained JSON event.
